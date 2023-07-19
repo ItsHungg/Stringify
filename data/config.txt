@@ -1,0 +1,19 @@
+.CONFIG
+.LOAD.CONFIGURATION
+
+@theme blue
+@mode light
+
+@placeholder Your text
+@corner_radius 7
+@punctuations ']+`):_@"&~$}{<;[#>?^,/-!\|=*.(%
+@numbers 0123456789
+
+@undo True
+@max_undo -unlimited
+
+@topmost False
+@sticky True
+
+.CONFIG.END("CONFIGURATION")
+<endl>
