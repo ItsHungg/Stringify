@@ -17,4 +17,4 @@ All notable changes to this project will be documented in this file.<br>
 <hr>
 
 # ToDo List
-(None)
+- Create a website for Stringify
