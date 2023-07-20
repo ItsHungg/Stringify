@@ -15,7 +15,7 @@ import random
 import os
 
 PROJECT_NAME = 'Stringify'
-PROJECT_VERSION = __version__ = '1.0.0'
+PROJECT_VERSION = __version__ = '1.0.1'
 
 
 class Function:
@@ -54,7 +54,7 @@ class Storage:
         self.THEME = 'blue'
         self.APPEARANCE_MODE = 'system'
         self.UPDATE_req = False
-        
+
         self.THEME_OBJECT = ctk.ThemeManager.theme
 
         self._start_prefix = self._stp = '.CONFIG\n.LOAD.CONFIGURATION'
@@ -212,7 +212,7 @@ class Load(ctk.CTkToplevel):
         self.check_update_thread.start()
         self.check_update_finished()
 
-        self.protocol('WM_DELETE_WINDOW', lambda: [self.destroy()])
+        self.protocol('WM_DELETE_WINDOW', lambda: [self.destroy(), root.destroy()])
 
     def done(self):
         self.mainProgressbar.stop()
@@ -529,7 +529,7 @@ class Settings(ctk.CTkToplevel):
             STORAGE._Windows.PLUGIN_EDITOR.deiconify()
             STORAGE._Windows.PLUGIN_EDITOR.lift()
             return
-        PLUGIN_MANAGER = False
+        PLUGIN_MANAGER: ctk.CTkToplevel | bool = False
 
         pluginEditWindow = STORAGE._Windows.PLUGIN_EDITOR = ctk.CTkToplevel(self)
         pluginEditWindow.title('Plugin Editor 1.0')
@@ -590,23 +590,31 @@ class Settings(ctk.CTkToplevel):
         def addPlugin():
             if pathEntry.get().endswith('.py'):
                 try:
-                    if not messagebox.askyesno('Warning', f'Are you sure to add this plugin?\nPath: {os.path.realpath(pathEntry.get())}', parent=pluginEditWindow):
+                    if not messagebox.askyesno('Warning',
+                                               f'Are you sure to add this plugin?\nPath: {os.path.realpath(pathEntry.get())}',
+                                               parent=pluginEditWindow):
                         return
                     with open(f'{pathEntry.get()}', 'r') as check_while:
                         read_plugin_lines = [i for i in check_while.readlines() if not i.lstrip().startswith('#')]
                         for line_in_plugin in read_plugin_lines:
                             if 'while' in line_in_plugin:
-                                if not messagebox.askyesno('Warning', 'We detected a potential while loop that can freeze this program. Would you still like to add plugin file?', icon='warning', parent=pluginEditWindow):
+                                if not messagebox.askyesno('Warning',
+                                                           'We detected a potential while loop that can freeze this program. Would you still like to add plugin file?',
+                                                           icon='warning', parent=pluginEditWindow):
                                     return
-                    if os.path.basename(pathEntry.get()) in [os.path.basename(file) for file in os.listdir('data\\plugins')]:
-                        if messagebox.askyesno('Warning', f'A file named "{os.path.basename(pathEntry.get())}" has already existed.\nDo you want to overwrite it?', icon='warning', default='no', parent=pluginEditWindow):
+                    if os.path.basename(pathEntry.get()) in [os.path.basename(file) for file in
+                                                             os.listdir('data\\plugins')]:
+                        if messagebox.askyesno('Warning',
+                                               f'A file named "{os.path.basename(pathEntry.get())}" has already existed.\nDo you want to overwrite it?',
+                                               icon='warning', default='no', parent=pluginEditWindow):
                             shutil.copy(pathEntry.get(), 'data\\plugins')
                         else:
                             return
                     else:
                         shutil.copy(pathEntry.get(), 'data\\plugins')
                 except shutil.SameFileError as error:
-                    messagebox.showwarning('[Error] Warning', f'An error has been raised.\n[Error] {error}', parent=pluginEditWindow)
+                    messagebox.showwarning('[Error] Warning', f'An error has been raised.\n[Error] {error}',
+                                           parent=pluginEditWindow)
                     return
                 addPluginButton.configure(state='disabled', fg_color='gray75')
 
@@ -643,7 +651,9 @@ class Settings(ctk.CTkToplevel):
             managePluginListbox = CTkListbox(pluginListFrame, text_color=('black', 'white'))
             managePluginListbox.grid(row=3, column=3)
             if '__init__.py' not in os.listdir('data\\plugins'):
-                if messagebox.askyesno('Warning', 'Couldn\'t find the __init__.py configuration file.\nDo you want to automatically create one?', parent=managePluginWindow):
+                if messagebox.askyesno('Warning',
+                                       'Couldn\'t find the __init__.py configuration file.\nDo you want to automatically create one?',
+                                       parent=managePluginWindow):
                     open('data\\plugins\\__init__.py', 'w').close()
 
             for file in os.listdir('data\\plugins'):
