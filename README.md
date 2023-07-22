@@ -1,7 +1,12 @@
-# Stringify
-Stringify is a new app that helps users to analyze and edit any text.
+<div align="center">
+  
+  <h1>Stringify</h1>
+  <p>Stringify is a new app that helps users to analyze and edit any text.</p>
+  
+</div>
 
 <hr>
+<br>
 
 ### How to download and run the application?
 #### Run through an installer:
