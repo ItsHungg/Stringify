@@ -15,7 +15,7 @@ import random
 import os
 
 PROJECT_NAME = 'Stringify'
-PROJECT_VERSION = __version__ = '1.1.0'
+PROJECT_VERSION = __version__ = '1.1.1'
 
 
 class Function:
@@ -110,6 +110,7 @@ class Storage:
             if uvar == PROJECT_NAME.strip().lower():
                 if not uval == PROJECT_VERSION.strip().lower():
                     STORAGE.UPDATE_req = uval
+                break
 
     class _Utilities:
         is_find: bool | ctk.CTkToplevel | ctk.CTk = False
@@ -238,7 +239,7 @@ class Load(ctk.CTkToplevel):
             messagebox.showwarning('[Error] Warning',
                                    'Unable to access server client. Please check your internet connection.')
             root.noSignalButton.grid(row=0, column=3, sticky='en', padx=5, pady=(5, 0))
-        if STORAGE.UPDATE_check and not isinstance(STORAGE.UPDATE_req, list):
+        if STORAGE.UPDATE_check and STORAGE.UPDATE_req and not isinstance(STORAGE.UPDATE_req, list):
             if messagebox.askyesno('Update',
                                    f'A new update ({STORAGE.UPDATE_req}) is ready. Do you want update {PROJECT_NAME}?\n(To disabled this, open Settings and turn off Check updates)',
                                    icon='warning'):
