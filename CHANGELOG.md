@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.<br>
 **Format:** `[x.y.z] - mm/dd/yyyy`
 <hr>
 
+## [1.1.1] - 07/22/2023
+### Fixed
+- Fixed a problem with the auto check for updates feature
+
 ## [1.1.0] - 07/22/2023
 ### Added
 - Added a setting option for auto-check for updates
