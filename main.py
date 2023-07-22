@@ -15,7 +15,7 @@ import random
 import os
 
 PROJECT_NAME = 'Stringify'
-PROJECT_VERSION = __version__ = '1.0.1'
+PROJECT_VERSION = __version__ = '1.1.0'
 
 
 class Function:
@@ -53,6 +53,8 @@ class Storage:
     def __init__(self):
         self.THEME = 'blue'
         self.APPEARANCE_MODE = 'system'
+
+        self.UPDATE_check = True
         self.UPDATE_req = False
 
         self.THEME_OBJECT = ctk.ThemeManager.theme
@@ -64,6 +66,7 @@ class Storage:
 
 @theme {}
 @mode {}
+@update {}
 
 @placeholder {}
 @corner_radius {}
@@ -94,8 +97,10 @@ class Storage:
 
     @staticmethod
     def check_update(widget: ctk.CTkLabel = None):
+        if STORAGE.UPDATE_req is None:
+            return
         try:
-            test = requests.get('https://client-data.w3spaces.com').text.strip().split('\n')
+            test = requests.get('https://clients-data.netlify.app').text.strip().split('\n')
         except requests.exceptions.ConnectionError:
             widget.configure(text='Failed to check version...') if widget is not None else None
             STORAGE.UPDATE_req = []
@@ -135,6 +140,13 @@ with open('data\\config.txt', 'r') as config_read:
                 STORAGE.THEME = val
             elif var == '@mode':
                 STORAGE.APPEARANCE_MODE = val
+            elif var == '@update':
+                if val.lower() == 'true':
+                    STORAGE.UPDATE_check = True
+                elif val.lower() == 'false':
+                    STORAGE.UPDATE_check = False
+                else:
+                    messagebox.showwarning('[Error] Warning', f'@update argument expected true or false, got: {val}')
             elif var == '@placeholder':
                 STORAGE.placeholder = val
             elif var == '@corner_radius':
@@ -149,7 +161,7 @@ with open('data\\config.txt', 'r') as config_read:
                 elif val.lower() == 'false':
                     STORAGE.undo = False
                 else:
-                    messagebox.showwarning('[Error] Warning', f'Undo argument expected true or false, got: {val}')
+                    messagebox.showwarning('[Error] Warning', f'@undo argument expected true or false, got: {val}')
             elif var == '@max_undo':
                 if val.isdigit():
                     if int(val) > 0:
@@ -169,14 +181,14 @@ with open('data\\config.txt', 'r') as config_read:
                 elif val.lower() == 'false':
                     STORAGE.topmost = False
                 else:
-                    messagebox.showwarning('[Error] Warning', f'Topmost argument expected true or false, got: {val}')
+                    messagebox.showwarning('[Error] Warning', f'@topmost argument expected true or false, got: {val}')
             elif var in ['@stick', '@sticky']:
                 if val.lower() == 'true':
                     STORAGE.sticky_setting = True
                 elif val.lower() == 'false':
                     STORAGE.sticky_setting = False
                 else:
-                    messagebox.showwarning('[Error] Warning', f'Sticky argument expected true or false, got: {val}')
+                    messagebox.showwarning('[Error] Warning', f'@sticky argument expected true or false, got: {val}')
             else:
                 messagebox.showwarning('[Error] Warning',
                                        f'Unknown command: {"@" if not var.startswith("@") else ""}{var}')
@@ -222,16 +234,15 @@ class Load(ctk.CTkToplevel):
 
     def end(self):
         self.destroy()
-        if STORAGE.UPDATE_req:
-            if messagebox.askyesno('Update',
-                                   f'A new update ({STORAGE.UPDATE_req}) is ready. Do you want update {PROJECT_NAME}?',
-                                   icon='warning'):
-                webbrowser.open('https://github.com/ItsHungg/Stringify/releases')
-                return
-        elif isinstance(STORAGE.UPDATE_req, list):
+        if isinstance(STORAGE.UPDATE_req, list):
             messagebox.showwarning('[Error] Warning',
                                    'Unable to access server client. Please check your internet connection.')
             root.noSignalButton.grid(row=0, column=3, sticky='en', padx=5, pady=(5, 0))
+        if STORAGE.UPDATE_check and not isinstance(STORAGE.UPDATE_req, list):
+            if messagebox.askyesno('Update',
+                                   f'A new update ({STORAGE.UPDATE_req}) is ready. Do you want update {PROJECT_NAME}?\n(To disabled this, open Settings and turn off Check updates)',
+                                   icon='warning'):
+                webbrowser.open('https://github.com/ItsHungg/Stringify/releases')
         root.deiconify()
 
         for file in os.listdir('data\\plugins'):
@@ -337,6 +348,13 @@ class Settings(ctk.CTkToplevel):
             '-topmost', True)
         self.stickySettingSwitch.grid(row=5, column=3, sticky='w', padx=5)
 
+        self.updateSettingSwitch = ctk.CTkSwitch(self.miscFrame, text='Check updates',
+                                                 command=lambda: Utilities.change_update_check(STORAGE.UPDATE_check))
+        self.updateSettingSwitch.select() if STORAGE.UPDATE_check else None
+        CTkToolTip(self.updateSettingSwitch, message='Automatically check for new updates.').attributes(
+            '-topmost', True)
+        self.updateSettingSwitch.grid(row=7, column=3, sticky='w', padx=5)
+
         self.numbersFrame = ctk.CTkFrame(self.miscFrame, fg_color='transparent')
         self.numbersFrame.grid(row=11, column=3, sticky='ew', pady=(15, 1))
 
@@ -384,7 +402,7 @@ class Settings(ctk.CTkToplevel):
         ctk.CTkLabel(self.footerFrame, text='-').grid(row=3, column=6)
 
         self.changelogLabel = ctk.CTkLabel(self.footerFrame, text=f'Changelog', cursor='hand2')
-        Utilities.hyperlinksBind(self.changelogLabel, 'https://github.com/ItsHungg/Stringify/releases')
+        Utilities.hyperlinksBind(self.changelogLabel, 'https://github.com/ItsHungg/Stringify/blob/main/CHANGELOG.md')
         self.changelogLabel.grid(row=3, column=7, sticky='w')
 
         self.parent.bind('<Configure>',
@@ -426,8 +444,10 @@ class Settings(ctk.CTkToplevel):
         editFrame.grid(row=3, column=3, padx=(15, 7), pady=(5, 10), rowspan=5)
 
         ctk.CTkLabel(editFrame, text='Viewer:').grid(row=1, column=3, sticky='ew', pady=5)
-        editValue = ctk.CTkTextbox(editFrame, height=250, wrap='word')
+        editValue = ctk.CTkTextbox(editFrame, height=250, wrap='word', state='disabled')
+        editValue.configure(state='normal')
         editValue.insert('0.0', f'Welcome to Theme Editor!')
+        editValue.configure(state='disabled')
         editValue.grid(row=3, column=3, sticky='nsew', padx=15, pady=(0, 15))
 
         # PATH FRAME
@@ -450,12 +470,21 @@ class Settings(ctk.CTkToplevel):
                 else:
                     saveThemeButton.configure(state='disabled', cursor='')
                 if pathEntry.get() in ['blue', 'dark-blue', 'green']:
+                    editValue.configure(state='normal')
+                    editValue.delete('0.0', 'end')
                     editValue.insert('0.0', f'Default theme: {pathEntry.get()}')
+                    editValue.configure(state='disabled')
                     return
                 with open(pathEntry.get(), 'r') as json_data:
+                    editValue.configure(state='normal')
+                    editValue.delete('0.0', 'end')
                     editValue.insert('0.0', json_data.read().strip())
+                    editValue.configure(state='disabled')
             except (FileNotFoundError, UnicodeError) as error:
+                editValue.configure(state='normal')
+                editValue.delete('0.0', 'end')
                 editValue.insert('0.0', f'[Error] {error}')
+                editValue.configure(state='disabled')
                 saveThemeButton.configure(state='disabled', cursor='')
                 messagebox.showerror('Error', f'Couldn\'t read file.\n[Error] {error}', parent=themeEditWindow)
 
@@ -513,7 +542,9 @@ class Settings(ctk.CTkToplevel):
                                      image=ctk.CTkImage(Image.open('assets\\textures\\trashbin.png')), width=40,
                                      fg_color='#f52f2f', hover_color='#d62929', cursor='hand2',
                                      command=lambda: [saveThemeButton.configure(state='disabled', cursor=''),
+                                                      editValue.configure(state='normal'),
                                                       editValue.delete('0.0', 'end'),
+                                                      editValue.configure(state='disabled'),
                                                       savePathButton.configure(state='disabled', cursor=''),
                                                       pathEntry.delete(0, 'end'), pathEntry.focus()])
         cancelButton.grid(row=3, column=5, sticky='e', pady=15, padx=(5, 15))
@@ -599,9 +630,17 @@ class Settings(ctk.CTkToplevel):
                         for line_in_plugin in read_plugin_lines:
                             if 'while' in line_in_plugin:
                                 if not messagebox.askyesno('Warning',
-                                                           'We detected a potential while loop that can freeze this program. Would you still like to add plugin file?',
+                                                           '[BETA] We detected a potential while loop that can freeze this program. Would you still like to add plugin file?',
                                                            icon='warning', parent=pluginEditWindow):
                                     return
+                                break
+
+                    if '__init__.py' not in os.listdir('data\\plugins'):
+                        if messagebox.askyesno('Warning',
+                                               'Couldn\'t find the __init__.py configuration file.\nDo you want to automatically create one?',
+                                               icon='warning', parent=pluginEditWindow):
+                            open('data\\plugins\\__init__.py', 'w').close()
+
                     if os.path.basename(pathEntry.get()) in [os.path.basename(file) for file in
                                                              os.listdir('data\\plugins')]:
                         if messagebox.askyesno('Warning',
@@ -650,16 +689,8 @@ class Settings(ctk.CTkToplevel):
             ctk.CTkLabel(pluginListFrame, text='Plugins:').grid(row=1, column=3, pady=5)
             managePluginListbox = CTkListbox(pluginListFrame, text_color=('black', 'white'))
             managePluginListbox.grid(row=3, column=3)
-            if '__init__.py' not in os.listdir('data\\plugins'):
-                if messagebox.askyesno('Warning',
-                                       'Couldn\'t find the __init__.py configuration file.\nDo you want to automatically create one?',
-                                       parent=managePluginWindow):
-                    open('data\\plugins\\__init__.py', 'w').close()
 
             for file in os.listdir('data\\plugins'):
-                if file == '__init__.py':
-                    managePluginListbox.insert(0, file)
-                    continue
                 if file.endswith('.py'):
                     managePluginListbox.insert('end', file)
 
@@ -1148,6 +1179,13 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
         Utilities.save_file()
 
     @staticmethod
+    def change_update_check(value: bool):
+        value = False if value else True
+        STORAGE.UPDATE_check = value
+
+        Utilities.save_file()
+
+    @staticmethod
     def move_window(window: ctk.CTk | ctk.CTkToplevel, parent: ctk.CTk | ctk.CTkToplevel = STORAGE._Windows.ROOT):
         window.geometry(f'+{parent.winfo_width() + parent.winfo_x() + 10}+{parent.winfo_y()}')
 
@@ -1155,7 +1193,7 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
     def save_file():
         with open('data\\config.txt', 'w') as save:
             save.write(
-                STORAGE._config_template.format(STORAGE.THEME, STORAGE.APPEARANCE_MODE, STORAGE.placeholder,
+                STORAGE._config_template.format(STORAGE.THEME, STORAGE.APPEARANCE_MODE, STORAGE.UPDATE_check, STORAGE.placeholder,
                                                 STORAGE.corner_radius, STORAGE.punctuations, STORAGE.numbers,
                                                 STORAGE.undo,
                                                 '-unlimited' if STORAGE.max_undo <= 0 else STORAGE.max_undo,
