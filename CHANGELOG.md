@@ -17,5 +17,5 @@ All notable changes to this project will be documented in this file.<br>
 <hr>
 
 # ToDo List
-- Add a "Don't ask again" option for Stringify update notification
-- Create a website for Stringify
+- Improve the Manage Plugins Windows
+- Finish the website for Stringify
