@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.<br>
 **Format:** `[x.y.z] - mm/dd/yyyy`
 <hr>
 
+## [1.1.0] - 07/22/2023
+### Added
+- Added a setting option for auto-check for updates
+- Added 1 attribute (command) to config.txt
+### Changed
+- Changed [data site](https://clients-data.netlify.app)
+- Changed the [changelog hyperlink site](https://github.com/ItsHungg/Stringify/blob/main/CHANGELOG.md)
+- Users can automatically add `__init__.py` file while adding a plugin instead of opening the manage window
+### Fixed
+- Fixed a bug at the no-signal warning messagebox
+- Fixed a small bug at the Viewer of Theme Editor 1.1
+- Fixed a bug at the while-loops detector (beta)
+
 ## [1.0.1] - 07/20/2023
 ### Fixed
 - Fixed a bug at the initialization
