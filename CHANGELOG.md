@@ -35,4 +35,5 @@ All notable changes to this project will be documented in this file.<br>
 
 # ToDo List
 - Improve the Manage Plugins Windows
+- Add aLtErNaTiVe case option for the case converter
 - Finish the website for Stringify
