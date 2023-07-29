@@ -3,10 +3,10 @@
 
 @theme blue
 @mode light
+@update True
 
-@placeholder Your text
 @corner_radius 7
-@punctuations ']+`):_@"&~$}{<;[#>?^,/-!\|=*.(%
+@punctuations <?"^=:%_|',];`-).#{!(*}$&>/\~+[@
 @numbers 0123456789
 
 @undo True
