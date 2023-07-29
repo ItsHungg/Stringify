@@ -6,16 +6,20 @@ from CTkToolTip import *
 from CTkListbox import *
 from PIL import Image
 
+from datetime import datetime, timedelta
 import webbrowser
 import threading
 import keyboard
 import requests
 import shutil
 import random
+import docx
+import time
+import sys
 import os
 
 PROJECT_NAME = 'Stringify'
-PROJECT_VERSION = __version__ = '1.1.1'
+PROJECT_VERSION = __version__ = '1.2.0'
 
 
 class Function:
@@ -45,6 +49,11 @@ class Function:
         return False
 
     @staticmethod
+    def alternative(text: str):
+        return ''.join([(ele.upper() if text[0].isupper() else ele.lower()) if not idx % 2 else (
+            ele.lower() if text[0].isupper() else ele.upper()) for idx, ele in enumerate(text)])
+
+    @staticmethod
     def check_plural(quantity: int, plural_text: str = 's'):
         return plural_text if quantity > 1 else ''
 
@@ -57,6 +66,9 @@ class Storage:
         self.UPDATE_check = True
         self.UPDATE_req = False
 
+        self.INTERNET_check = True
+        self.INTERNET_timeout = 5
+
         self.THEME_OBJECT = ctk.ThemeManager.theme
 
         self._start_prefix = self._stp = '.CONFIG\n.LOAD.CONFIGURATION'
@@ -68,7 +80,6 @@ class Storage:
 @mode {}
 @update {}
 
-@placeholder {}
 @corner_radius {}
 @punctuations {}
 @numbers {}
@@ -81,11 +92,13 @@ class Storage:
 
 .CONFIG.END(\"CONFIGURATION\")
 <endl>'''
+        self.sample_text = 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Cras ornare dolor rutrum vulputate posuere. Proin ac euismod turpis. Vestibulum in lectus non felis aliquam consequat. Morbi congue enim vitae hendrerit sagittis. Sed dapibus sagittis elit, ac sollicitudin risus. Integer quis nunc mauris. In faucibus, odio in tincidunt tristique, lectus urna volutpat erat, eget dapibus nulla tortor ut eros.'
+
         self.placeholder = 'Your text'
         self.corner_radius = 7
         self.punctuations = '`-=[]\\;\',./~_+{}|:\"<>?!@#$%^&*()'
         self.numbers = '0123456789'
-        self.text_cases = ['Original', 'Sentence case', 'UPPER CASE', 'lower case', 'iNVERSE cASE']
+        self.text_cases = ['Original', 'Title', 'UPPER', 'lower', 'iNVERSE', 'aLtErNaTiVe']
 
         self.undo = False
         self.max_undo = 0
@@ -112,7 +125,27 @@ class Storage:
                     STORAGE.UPDATE_req = uval
                 break
 
+    @staticmethod
+    def check_internet(widget: ctk.CTkButton):
+        while True:
+            if not STORAGE._Utilities.is_running:
+                break
+            if not STORAGE.INTERNET_check:
+                widget.master.update()
+                return
+            try:
+                requests.get('https://www.youtube.com', timeout=STORAGE.INTERNET_timeout)
+                widget.grid_forget()
+            except (requests.ConnectionError, requests.Timeout):
+                widget.grid_forget()
+                widget.grid(row=0, column=3, sticky='en', padx=5, pady=(5, 0))
+
+            widget.master.update()
+            time.sleep(STORAGE.INTERNET_timeout + 0.25)
+
     class _Utilities:
+        is_running = True
+
         is_find: bool | ctk.CTkToplevel | ctk.CTk = False
         find_case_sensitive = True
 
@@ -147,7 +180,29 @@ with open('data\\config.txt', 'r') as config_read:
                 elif val.lower() == 'false':
                     STORAGE.UPDATE_check = False
                 else:
-                    messagebox.showwarning('[Error] Warning', f'@update argument expected true or false, got: {val}')
+                    messagebox.showwarning('[Error] Warning', f'{var} argument expected true or false, got: {val}')
+            elif var in ['@internet', '@internet.check']:
+                if len(val.split()) == 2:
+                    splited_val = val.split()
+                    if splited_val[0].lower() == 'true':
+                        STORAGE.INTERNET_check = True
+                    elif splited_val[0].lower() == 'false':
+                        STORAGE.INTERNET_check = False
+                    else:
+                        messagebox.showwarning('[Error] Warning',
+                                               f'{var} argument expected true or false, got: {splited_val[0]}')
+                    if splited_val[1].isdigit():
+                        STORAGE.INTERNET_timeout = int(splited_val[1])
+                    else:
+                        messagebox.showwarning('[Error] Warning',
+                                               f'Timeout value expected an integer, got: {splited_val[1]}')
+                else:
+                    if val.lower() == 'true':
+                        STORAGE.INTERNET_check = True
+                    elif val.lower() == 'false':
+                        STORAGE.INTERNET_check = False
+                    else:
+                        messagebox.showwarning('[Error] Warning', f'{var} argument expected true or false, got: {val}')
             elif var == '@placeholder':
                 STORAGE.placeholder = val
             elif var == '@corner_radius':
@@ -155,14 +210,14 @@ with open('data\\config.txt', 'r') as config_read:
                     STORAGE.corner_radius = int(val)
                 else:
                     messagebox.showwarning('[Error] Warning',
-                                           f'Corner radius must be an integer. Expected an int, got: {val}.')
+                                           f'Corner radius must be an integer. Expected an int, got: {val}')
             elif var == '@undo':
                 if val.lower() == 'true':
                     STORAGE.undo = True
                 elif val.lower() == 'false':
                     STORAGE.undo = False
                 else:
-                    messagebox.showwarning('[Error] Warning', f'@undo argument expected true or false, got: {val}')
+                    messagebox.showwarning('[Error] Warning', f'{var} argument expected true or false, got: {val}')
             elif var == '@max_undo':
                 if val.isdigit():
                     if int(val) > 0:
@@ -182,14 +237,14 @@ with open('data\\config.txt', 'r') as config_read:
                 elif val.lower() == 'false':
                     STORAGE.topmost = False
                 else:
-                    messagebox.showwarning('[Error] Warning', f'@topmost argument expected true or false, got: {val}')
+                    messagebox.showwarning('[Error] Warning', f'{var} argument expected true or false, got: {val}')
             elif var in ['@stick', '@sticky']:
                 if val.lower() == 'true':
                     STORAGE.sticky_setting = True
                 elif val.lower() == 'false':
                     STORAGE.sticky_setting = False
                 else:
-                    messagebox.showwarning('[Error] Warning', f'@sticky argument expected true or false, got: {val}')
+                    messagebox.showwarning('[Error] Warning', f'{var} argument expected true or false, got: {val}')
             else:
                 messagebox.showwarning('[Error] Warning',
                                        f'Unknown command: {"@" if not var.startswith("@") else ""}{var}')
@@ -244,11 +299,18 @@ class Load(ctk.CTkToplevel):
                                    f'A new update ({STORAGE.UPDATE_req}) is ready. Do you want update {PROJECT_NAME}?\n(To disabled this, open Settings and turn off Check updates)',
                                    icon='warning'):
                 webbrowser.open('https://github.com/ItsHungg/Stringify/releases')
+
         root.deiconify()
+        threading.Thread(target=Utilities.update_elapsed, args=(
+            root.elapsedLabel, datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'), '%m/%d/%Y - %H:%M:%S'))).start()
+        threading.Thread(target=STORAGE.check_internet, args=[root.noSignalButton]).start()
 
         for file in os.listdir('data\\plugins'):
             if file.endswith('.py'):
-                __import__(f'data.plugins.{file[:-3]}')
+                try:
+                    exec(open(f'data\\plugins\\{file}').read())
+                except Exception as error:
+                    messagebox.showwarning(f'[Error] Warning ({file})', f'Something went wrong with your plugin.\n[{type(error).__name__}]: {error}')
 
     def check_update_finished(self):
         if self.check_update_thread.is_alive():
@@ -484,14 +546,15 @@ class Settings(ctk.CTkToplevel):
             except (FileNotFoundError, UnicodeError) as error:
                 editValue.configure(state='normal')
                 editValue.delete('0.0', 'end')
-                editValue.insert('0.0', f'[Error] {error}')
+                editValue.insert('0.0', f'[{type(error).__name__}]: {error}')
                 editValue.configure(state='disabled')
                 saveThemeButton.configure(state='disabled', cursor='')
-                messagebox.showerror('Error', f'Couldn\'t read file.\n[Error] {error}', parent=themeEditWindow)
+                messagebox.showerror('Error', f'Couldn\'t read file.\n[{type(error).__name__}]: {error}',
+                                     parent=themeEditWindow)
 
         def openfile():
             filename = filedialog.askopenfilename(title='Choose a theme', initialdir='\\',
-                                                  filetypes=[('JSON files', '*.json')], parent=themeEditWindow)
+                                                  filetypes=[('JSON files (*.json)', '*.json')], parent=themeEditWindow)
             themeEditWindow.lift()
             if filename != '':
                 pathEntry.delete(0, 'end')
@@ -507,7 +570,9 @@ class Settings(ctk.CTkToplevel):
 
                 Utilities.save_file()
             except Exception as error:
-                messagebox.showerror('Error', f'Something went wrong. Please try again.\n[Error] {str(error)}')
+                messagebox.showerror('Error',
+                                     f'Something went wrong. Please try again.\n[{type(error).__name__}]: {error}',
+                                     parent=themeEditWindow)
                 return
 
             messagebox.showwarning('Warning', f'You need to restart {PROJECT_NAME} to see the changes.')
@@ -590,10 +655,12 @@ class Settings(ctk.CTkToplevel):
             except UnicodeError as error:
                 editValue.configure(state='normal')
                 editValue.delete('0.0', 'end')
-                editValue.insert('0.0', f'[Error] {error}')
+                editValue.insert('0.0', f'[{type(error).__name__}]: {error}')
                 editValue.configure(state='disabled')
                 if show_warning:
-                    messagebox.showwarning('[Error] Warning', f'Couldn\'t read file.\n[Error] {error}', parent=parent)
+                    messagebox.showwarning('[Error] Warning',
+                                           f'Couldn\'t read file.\n[{type(error).__name__}]: {error}',
+                                           parent=parent)
                 return False
             return True
 
@@ -610,7 +677,7 @@ class Settings(ctk.CTkToplevel):
 
         def openfile():
             filename = filedialog.askopenfilename(title='Choose a theme', initialdir='\\',
-                                                  filetypes=[('Python files', '*.py')], parent=pluginEditWindow)
+                                                  filetypes=[('Python files (*.py)', '*.py')], parent=pluginEditWindow)
             pluginEditWindow.lift()
             if filename != '':
                 pathEntry.delete(0, 'end')
@@ -640,7 +707,7 @@ class Settings(ctk.CTkToplevel):
                         if messagebox.askyesno('Warning',
                                                'Couldn\'t find the __init__.py configuration file.\nDo you want to automatically create one?',
                                                icon='warning', parent=pluginEditWindow):
-                            open('data\\plugins\\__init__.py', 'w').close()
+                            Utilities.write_init()
 
                     if os.path.basename(pathEntry.get()) in [os.path.basename(file) for file in
                                                              os.listdir('data\\plugins')]:
@@ -653,7 +720,8 @@ class Settings(ctk.CTkToplevel):
                     else:
                         shutil.copy(pathEntry.get(), 'data\\plugins')
                 except shutil.SameFileError as error:
-                    messagebox.showwarning('[Error] Warning', f'An error has been raised.\n[Error] {error}',
+                    messagebox.showwarning('[Error] Warning',
+                                           f'An error has been raised.\n[{type(error).__name__}]: {error}',
                                            parent=pluginEditWindow)
                     return
                 addPluginButton.configure(state='disabled', fg_color='gray75')
@@ -777,6 +845,36 @@ class Application(ctk.CTk):
         # DEFINE VARIABLES
         self.MISC = Utilities(self)
 
+        self.MENU = tk.Menu(self, tearoff=0)
+        self.MENU.wrapMENU = tk.Menu(self.MENU, tearoff=0)
+        self.MENU.wrapMENU.add_command(label='Word', command=lambda: self.MISC.change_wrap('word'))
+        self.MENU.wrapMENU.add_command(label='Character', command=lambda: self.MISC.change_wrap('char'))
+
+        self.MENU.optionMENU = tk.Menu(self.MENU, tearoff=0)
+        self.MENU.optionMENU.add_command(label='Strip text', command=lambda: self.MISC.text_option('strip'))
+        self.MENU.optionMENU.add_command(label='Clean text', command=lambda: self.MISC.text_option('clean'))
+        self.MENU.optionMENU.add_command(label='Remove space', command=lambda: self.MISC.text_option('remove.space'))
+        self.MENU.optionMENU.add_separator()
+        self.MENU.optionMENU.add_command(label='Clear text', command=lambda: self.MISC.text_option('clear'))
+
+        self.MENU.justifyMENU = tk.Menu(self.MENU.optionMENU, tearoff=0)
+        self.MENU.justifyMENU.add_command(label='Left', command=lambda: self.MISC.text_option('justify.left'))
+        self.MENU.justifyMENU.add_command(label='Center', command=lambda: self.MISC.text_option('justify.center'))
+        self.MENU.justifyMENU.add_command(label='Right', command=lambda: self.MISC.text_option('justify.right'))
+        self.MENU.optionMENU.add_separator()
+        self.MENU.optionMENU.add_cascade(label='Justify', menu=self.MENU.justifyMENU)
+
+        self.MENU.add_command(label='Cut', command=lambda: self.MISC.text_option('cut'))
+        self.MENU.add_command(label='Copy', command=lambda: self.MISC.text_option('copy'))
+        self.MENU.add_command(label='Paste', command=lambda: self.MISC.text_option('paste'))
+        self.MENU.add_separator()
+        self.MENU.add_command(label='Undo', command=lambda: self.MISC.text_option('undo'))
+        self.MENU.add_command(label='Redo', command=lambda: self.MISC.text_option('redo'))
+        self.MENU.add_separator()
+        self.MENU.add_cascade(label='Wrap option', menu=self.MENU.wrapMENU)
+        self.MENU.add_cascade(label='Text option', menu=self.MENU.optionMENU)
+        self.MENU.add_command(label='Insert sample', command=lambda: [self.MISC._textbox_placeholder(call=True), self.mainTextbox.insert('current', STORAGE.sample_text), self.MISC._bind_result(call=True, update=True)])
+
         # DEFINE WINDOW PROPERTIES
         self.title(f'{PROJECT_NAME} {PROJECT_VERSION}')
         self.iconbitmap('assets\\icon\\icon.ico')
@@ -797,8 +895,13 @@ class Application(ctk.CTk):
         self.headerFrame = ctk.CTkFrame(self, fg_color='transparent')
         self.headerFrame.grid(row=3, column=3, pady=(0, 15))
 
-        ctk.CTkLabel(self.headerFrame, text=PROJECT_NAME, fg_color='transparent', font=('Helvetica', 45, 'bold')).grid(
+        ctk.CTkLabel(self.headerFrame, text=PROJECT_NAME, fg_color='transparent', font=('Helvetica', 45, 'bold'),
+                     anchor='s').grid(
             row=3, column=3)
+        self.elapsedLabel = ctk.CTkLabel(self.headerFrame, text='00:00:00', anchor='n')
+        self.elapsedLabel.grid(row=5, column=3, sticky='n', pady=(3, 0))
+        self.elapsedToolTip = CTkToolTip(self.elapsedLabel, message=f'Started: [...] (0s)')
+        self.elapsedToolTip.attributes('-topmost', True)
 
         # MAIN FRAME
         self.mainFrame = ctk.CTkFrame(self, corner_radius=STORAGE.corner_radius)
@@ -809,6 +912,9 @@ class Application(ctk.CTk):
                                           text_color='gray50')
         self.mainTextbox.grid(row=3, column=3, padx=15, pady=15, sticky='ew')
         self.mainTextbox.insert('0.0', STORAGE.placeholder)
+        self.mainTextbox.tag_config('justify', justify='left')
+        self.mainTextbox.tag_add('justify', '0.0', 'end')
+
         self.MISC._textbox_placeholder(STORAGE.placeholder, color='gray50')
         self.MISC._textbox_quitcheck()
 
@@ -816,12 +922,20 @@ class Application(ctk.CTk):
         self.actionFrame = ctk.CTkFrame(self, corner_radius=STORAGE.corner_radius, fg_color='transparent')
         self.actionFrame.grid(row=7, column=3, sticky='new', padx=25, pady=(3, 5))
 
-        self.actionFrame.grid_columnconfigure(3, weight=1)
+        self.actionFrame.grid_columnconfigure(5, weight=1)
+        self.uploadButton = ctk.CTkButton(self.actionFrame, text='', width=0, fg_color='transparent', hover=False,
+                                          cursor='hand2',
+                                          image=ctk.CTkImage(
+                                              light_image=Image.open('assets\\textures\\upload_light.png'),
+                                              dark_image=Image.open('assets\\textures\\upload_dark.png')))
+        self.uploadButton.configure(command=lambda: Utilities.uploadFile(self.uploadButton))
+        self.uploadButton.grid(row=3, column=3)
+
         self.actionButton = ctk.CTkSegmentedButton(self.actionFrame, values=STORAGE.text_cases,
                                                    unselected_color=('gray65', 'gray29'),
                                                    fg_color=self.cget('fg_color'), command=self.MISC._bind_action,
                                                    state='disabled')
-        self.actionButton.grid(row=3, column=3, sticky='ew')
+        self.actionButton.grid(row=3, column=5, sticky='ew')
         self.actionButton.set('Original')
 
         # RESULT FRAME
@@ -864,6 +978,8 @@ Characters without spaces/line-breaks: 0 (0.0%)''', justify='left')
         self.punctuationsStatsTooltips = CTkToolTip(self.punctuationsStats, delay=0.5,
                                                     message=f'Punctuations: 0 (0.0%)')
 
+        self.footerFrame = ctk.CTkFrame(self, fg_color='transparent', width=0, height=0)
+
         self.MISC._bind_result()
 
 
@@ -873,7 +989,7 @@ class Utilities:
 
         self.object = parent
 
-    def _textbox_placeholder(self, text: str, widget: ctk.CTkTextbox = None, color: tuple | str = 'gray50'):
+    def _textbox_placeholder(self, text: str = '', widget: ctk.CTkTextbox = None, color: tuple | str = 'gray50', call: bool = False):
         if widget is None:
             widget = self.object.mainTextbox
 
@@ -896,12 +1012,22 @@ class Utilities:
 
         def __textfocus(_):
             if widget.cget('text_color') == color:
+                widget.focus()
+                widget.configure(autoseparators=False)
+                widget.delete('0.0', 'end')
+            Utilities.set_widget_color(widget)
+
+        if call:
+            if widget.cget('text_color') == color:
+                widget.configure(autoseparators=False)
                 widget.delete('0.0', 'end')
             Utilities.set_widget_color(widget)
 
         widget.bind('<Enter>', __focusin)
         widget.bind('<Leave>', __focusout)
         widget._textbox.bind('<FocusIn>', __textfocus)
+
+        widget.bind('<Button-3>', lambda event: self.object.MENU.post(event.x_root, event.y_root))
 
     def _textbox_quitcheck(self, key: str = 'esc', widget: ctk.CTkTextbox = None):
         if widget is None:
@@ -913,27 +1039,32 @@ class Utilities:
 
         widget.bind('<KeyPress>', __bind_return)
 
-    def _bind_result(self, widget: ctk.CTkTextbox = None):
+    def _bind_result(self, widget: ctk.CTkTextbox = None, call: bool = False, update: bool = False):
         if widget is None:
             widget = self.object.mainTextbox
 
         __one_million = False
 
-        def __result_bind(_):
+        def __result_bind(event=None):
             nonlocal __one_million
-            if self.object.actionButton.get() != 'Original':
-                self.object.actionButton.set('Original')
+            if event is not None:
+                if event.char != '' and self.object.actionButton.get() != 'Original':
+                    self.object.actionButton.set('Original')
+                STORAGE.current_text = self.object.mainTextbox.get('0.0', 'end-1c')
 
             ___item: str = widget.get('0.0', 'end-1c')
+            if update:
+                STORAGE.current_text = ___item
             if len(___item) and self.object.actionButton._state == 'disabled':
                 self.object.actionButton.configure(state='normal')
             if not len(___item) and self.object.actionButton._state == 'normal':
                 self.object.actionButton.configure(state='disabled')
-            STORAGE.current_text = ___item
 
             ___words = len(___item.split())
             ___without_punctuations = len([i for i in ___item.split() if not any(
                 q in STORAGE.punctuations for q in i[:-1]) and i not in STORAGE.punctuations])
+            ___without_numbers = len([i for i in ___item.split() if not any(
+                q in STORAGE.numbers for q in i) and i not in STORAGE.numbers])
             ___w_uppercase = len([i for i in ___item.split() if i.isupper()])
             ___w_lowercase = len([i for i in ___item.split() if i.islower()])
             ___w_capitalize = len([i for i in ___item.split() if FUNCTION.iscapitalize(i)])
@@ -953,6 +1084,7 @@ class Utilities:
             self.object.wordsStats.configure(text=f'Words: {___words:,}')
             self.object.wordsStatsTooltips.configure(
                 message=f'''Words without punctuations: {___without_punctuations:,} ({0 if not ___words else ___without_punctuations / ___words * 100:.1f}%)
+Words without numbers: {___without_numbers:,} ({0 if not ___words else ___without_numbers / ___words * 100:.1f}%)
 UPPERCASE | lowercase | Capitalize: {___w_uppercase} | {___w_lowercase} | {___w_capitalize} ({0 if not ___words else ___w_uppercase / ___words * 100:.1f}% | {0 if not ___words else ___w_lowercase / ___words * 100:.1f}% | {0 if not ___words else ___w_capitalize / ___words * 100:.1f}%)''')
 
             self.object.charactersStats.configure(text=f'Characters: {___characters:,}')
@@ -976,29 +1108,60 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             elif len(___item) < 1000000:
                 __one_million = False
 
+        if call:
+            __result_bind(None)
         widget.bind('<KeyRelease>', __result_bind)
 
     def _bind_action(self, value, widget: ctk.CTkTextbox = None):
         if widget is None:
             widget = self.object.mainTextbox
         index = STORAGE.text_cases.index(value)
-        new = STORAGE.current_text if STORAGE.current_text != '' else STORAGE.placeholder
+        new = STORAGE.current_text
         widget.delete('0.0', 'end')
         if index == 0:
             widget.insert('0.0', new)
         elif index == 1:
-            widget.insert('0.0', new.capitalize())
+            widget.insert('0.0', new.title())
         elif index == 2:
             widget.insert('0.0', new.upper())
         elif index == 3:
             widget.insert('0.0', new.lower())
         elif index == 4:
             widget.insert('0.0', new.swapcase())
-        self._bind_result()
+        elif index == 5:
+            widget.insert('0.0', FUNCTION.alternative(new))
+        self._bind_result(call=True)
 
     @staticmethod
     def exit():
-        root.destroy()
+        root.withdraw()
+        for toplevel in root.winfo_children():
+            if isinstance(toplevel, ctk.CTkToplevel):
+                toplevel.destroy()
+        STORAGE._Utilities.is_running = False
+
+        destroyWindow = ctk.CTkToplevel(root)
+        destroyWindow.title('Exit & Quit')
+        destroyWindow.resizable(False, False)
+        destroyWindow.after(250, lambda: destroyWindow.iconbitmap('assets\\icon\\icon.ico'))
+
+        destroyFrame = ctk.CTkFrame(destroyWindow, fg_color='transparent')
+        destroyFrame.grid(row=3, column=3, padx=15, pady=(5, 15))
+
+        ctk.CTkLabel(destroyFrame, text=f'Saving & Exiting {PROJECT_NAME}...').grid(row=3, column=3)
+        exitingProgressbar = ctk.CTkProgressBar(destroyFrame, mode='indeterminate', width=250)
+        exitingProgressbar.grid(row=5, column=3)
+        exitingProgressbar.start()
+
+        def _exit():
+            exitingProgressbar.stop()
+            exitingProgressbar.configure(mode='determinate')
+            exitingProgressbar.set(1)
+            root.after(2000, lambda: [root.destroy(), sys.exit()])
+
+        Utilities.save_file()
+        root.after(random.randint(1500, 3000), _exit)
+        destroyWindow.protocol('WM_DELETE_WINDOW', lambda: None)
 
     @staticmethod
     def find(shift_pressed=False):
@@ -1011,9 +1174,13 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             return
         sel_first, sel_last = False, False
         case_sensitive = True
+        find_history = False
+        last_text = False
+
         root.focus()
 
         STORAGE._Utilities.is_find = findWindow = ctk.CTkToplevel(root)
+        findWindow.geometry(f'+{root.winfo_x() + 35}+{root.winfo_y() + 35}') if STORAGE.sticky_setting else None
         findWindow.title('Find')
         findWindow.focus()
         findWindow.resizable(False, False)
@@ -1036,14 +1203,24 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
         findEntry.grid(row=3, column=3)
 
         resultLabel = ctk.CTkLabel(mainFindFrame, text='Result: 0 (0.0%)')
-        resultToolTip = CTkToolTip(resultLabel, message='0/0 (0.0%)')
+        resultToolTip = CTkToolTip(resultLabel, message='Characters: 0/0 (0.0%)\nOccurrences: 0/0 (0.0%)',
+                                   justify='left', alpha=0.9)
         resultToolTip.attributes('-topmost', True)
         resultLabel.grid(row=5, column=2, columnspan=4)
 
         def find_text(event=None):
+            nonlocal find_history, last_text
+
             item = findEntry.get()
-            if event is not None and event.keycode == 13:
-                return
+            if event is not None:
+                if event.keycode == 13:
+                    return
+                if isinstance(event.widget, ctk.CTkTextbox):
+                    if root.mainTextbox.get('0.0', 'end-1c') == last_text:
+                        return
+                else:
+                    if findEntry.get() == find_history:
+                        return
             root.mainTextbox.tag_delete('chosen')
 
             idx = '0.0'
@@ -1075,10 +1252,14 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             if shift_pressed and sel_first and sel_last:
                 idx, edx = sel_first, sel_last
             text = root.mainTextbox.get(idx, edx)
-            resultLabel.configure(text=f'Searching in {len(text)} characters...') if len(text) else None
+            resultLabel.configure(text=f'Searching in {len(text)} characters... (0.0%)') if len(text) else None
+            find_history = findEntry.get()
+            last_text = root.mainTextbox.get('0.0', 'end-1c')
+            total = text.count(item) if not case_sensitive else text.lower().count(item.lower())
             if item != '' and item in text:
                 findEntry.configure(text_color=('black', 'white'))
                 root.mainTextbox.tag_delete('found')
+
                 while True:
                     idx = root.mainTextbox.search(item, idx, stopindex=edx, nocase=1 if case_sensitive else 0)
                     if findEntry.get() != item:
@@ -1088,12 +1269,20 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
                     lastidx = '%s+%dc' % (idx, len(item))
 
                     root.mainTextbox.tag_add('found', idx, lastidx)
+                    root.mainTextbox.tag_config('found', background='blue', foreground='white')
                     positions.append((idx, lastidx))
                     idx = lastidx
 
+                    success = occurrence / total * 100
+                    resultLabel.configure(
+                        text=f'Searching in {len(text)} characters... ({success if success <= 100 else 100:.1f}%)')
+                    resultToolTip.configure(
+                        message=f'Characters: {occurrence * len(item)}/{len(text)} ({0 if not len(text) else occurrence * len(item) / len(text) * 100:.1f}%)\nOccurrences: {total}')
+
                     occurrence += 1
                     root.update()
-                root.mainTextbox.yview(root.mainTextbox.search(item, '0.0', stopindex='end'))
+                root.mainTextbox.yview(
+                    root.mainTextbox.search(item, sel_first if sel_first else '0.0', stopindex='end'))
                 root.mainTextbox.tag_config('found', background='blue', foreground='white')
 
                 findEntry.bind('<Return>', next_position)
@@ -1104,10 +1293,10 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             resultLabel.configure(
                 text=f'Result: {occurrence} ({0 if not len(text) else occurrence * len(item) / len(text) * 100:.1f}%)')
             resultToolTip.configure(
-                message=f'{occurrence * len(item)}/{len(text)} ({0 if not len(text) else occurrence * len(item) / len(text) * 100:.1f}%)')
+                message=f'Characters: {occurrence * len(item)}/{len(text)} ({0 if not len(text) else occurrence * len(item) / len(text) * 100:.1f}%)\nOccurrences: {occurrence}')
 
-        if root.mainTextbox.tag_ranges("sel"):
-            sel_first, sel_last = root.mainTextbox.tag_ranges("sel")
+        if root.mainTextbox.tag_ranges('sel'):
+            sel_first, sel_last = root.mainTextbox.tag_ranges('sel')
             findEntry.configure(placeholder_text='Find (In selected text)')
             if shift_pressed:
                 root.mainTextbox.tag_add('selected', sel_first, sel_last)
@@ -1145,6 +1334,65 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
 
         root.mainTextbox.bind('<KeyRelease>', find_text)
         findWindow.protocol('WM_DELETE_WINDOW', close_find)
+
+    def change_wrap(self, wrap):
+        self.object.mainTextbox.configure(wrap=wrap)
+
+    def text_option(self, command: str, text: str = None):
+        sel_first, sel_last = '0.0', 'end-1c'
+        widget = self.object.mainTextbox
+        if text is None:
+            if root.mainTextbox.tag_ranges('sel'):
+                sel_first, sel_last = root.mainTextbox.tag_ranges('sel')
+
+            text = widget.get(sel_first, sel_last)
+        command = command.lower()
+
+        self._textbox_placeholder(call=True)
+        if command == 'cut':
+            self.object.clipboard_clear()
+            self.object.clipboard_append(text)
+            widget.delete(sel_first, sel_last)
+        elif command == 'copy':
+            self.object.clipboard_clear()
+            self.object.clipboard_append(text)
+        elif command == 'paste':
+            try:
+                widget.insert('insert', self.object.clipboard_get())
+            except tk.TclError:
+                messagebox.showwarning('[Error] Warning', 'There is nothing in your clipboard.')
+        elif command == 'strip':
+            widget.delete(sel_first, sel_last)
+            widget.insert(sel_first, text.strip())
+        elif command == 'clean':
+            widget.delete(sel_first, sel_last)
+            widget.insert(sel_first, ' '.join(text.strip().split()))
+        elif command == 'remove.space':
+            widget.delete(sel_first, sel_last)
+            widget.insert(sel_first, text.replace(' ', ''))
+        elif command == 'clear':
+            widget.delete(sel_first, sel_last)
+        elif command.startswith('justify.'):
+            arg = command.split('.')[-1].lower()
+            if arg == 'left':
+                widget.tag_config('justify', justify='left')
+            elif arg == 'center':
+                widget.tag_config('justify', justify='center')
+            elif arg == 'right':
+                widget.tag_config('justify', justify='right')
+            widget.tag_add('justify', '0.0', 'end')
+        elif command == 'undo':
+            try:
+                widget.edit_undo()
+            except tk.TclError:
+                messagebox.showwarning('Warning', f'There is nothing to undo.')
+        elif command == 'redo':
+            try:
+                widget.edit_redo()
+            except tk.TclError:
+                messagebox.showwarning('Warning', f'There is nothing to redo.')
+
+        self._bind_result(call=True, update=True)
 
     @staticmethod
     def set_widget_color(widget: ctk.CTkTextbox, color=STORAGE.THEME_OBJECT['CTkTextbox']['text_color']):
@@ -1194,7 +1442,7 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
     def save_file():
         with open('data\\config.txt', 'w') as save:
             save.write(
-                STORAGE._config_template.format(STORAGE.THEME, STORAGE.APPEARANCE_MODE, STORAGE.UPDATE_check, STORAGE.placeholder,
+                STORAGE._config_template.format(STORAGE.THEME, STORAGE.APPEARANCE_MODE, STORAGE.UPDATE_check,
                                                 STORAGE.corner_radius, STORAGE.punctuations, STORAGE.numbers,
                                                 STORAGE.undo,
                                                 '-unlimited' if STORAGE.max_undo <= 0 else STORAGE.max_undo,
@@ -1206,6 +1454,37 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             os.system(f'explorer /select,\"{path}\"')
         else:
             os.startfile(os.path.realpath(path))
+
+    @staticmethod
+    def uploadFile(parent):
+        filename = filedialog.askopenfilename(title='Upload file', initialdir='\\',
+                                              filetypes=(
+                                                  ('Text documents (*.txt)', '*.txt'),
+                                                  ('JSON files (*.json)', '*.json'),
+                                                  ('Python files (*.py)', '*.py'),
+                                                  ('Microsoft Word Documents (*.docx)', '*.docx'),
+                                                  ('Microsoft Word Documents (*.doc)', '*.doc'),
+                                                  ('All files', '*.*')), parent=parent)
+        try:
+            root.mainTextbox.focus()
+            if filename == '':
+                return
+            elif any(filename.endswith(end) for end in ['.txt', '.json', '.py']):
+                with open(filename, 'r', encoding='utf8') as addFile:
+                    root.mainTextbox.delete('0.0', 'end')
+                    root.mainTextbox.insert('0.0', addFile.read())
+            elif any(filename.endswith(end) for end in ['.doc', '.docx']):
+                document = docx.Document(filename)
+                for docline in document.paragraphs:
+                    root.mainTextbox.delete('0.0', 'end')
+                    root.mainTextbox.insert('end', '\n' + docline.text)
+            else:
+                messagebox.showwarning('[Error] Warning', f'Unable to read file.\nPath: {filename}', parent=parent)
+                return
+            root.mainTextbox.configure(text_color=STORAGE.THEME_OBJECT['CTkTextbox']['text_color'])
+            Utilities(root)._bind_result(call=True, update=True)
+        except Exception as error:
+            messagebox.showwarning('[Error] Warning', f'[{type(error).__name__}]: {error}')
 
     @staticmethod
     def punctuationsBind(character):
@@ -1240,6 +1519,41 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
         widget.bind('<Enter>', lambda _: widget.cget('font').configure(underline=True))
         widget.bind('<Leave>', lambda _: widget.cget('font').configure(underline=False))
 
+    @staticmethod
+    def update_elapsed(widget: ctk.CTkLabel, timestamp: datetime.strptime, tooltip: CTkToolTip = False):
+        while True:
+            if not STORAGE._Utilities.is_running:
+                break
+            distance = datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'),
+                                         '%m/%d/%Y - %H:%M:%S') - timestamp
+            if distance.seconds/3600 > 24:
+                widget.configure(text='')
+                return
+            else:
+                text = ':'.join([i.zfill(2) for i in str(distance).split(':')])
+
+            widget.configure(text=text)
+            if tooltip:
+                started = ":".join([i.zfill(2) for i in str(timedelta(hours=timestamp.hour, minutes=timestamp.minute,
+                                                                      seconds=timestamp.second)).split(":")])
+                if (datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'),
+                                      '%m/%d/%Y - %H:%M:%S') - timestamp).seconds > 99999:
+                    tooltip.configure(
+                        message=f'Start: {started} (99999s)')
+                else:
+                    tooltip.configure(
+                        message=f'Start: {started} ({(datetime.strptime(time.strftime("%m/%d/%Y - %H:%M:%S"), "%m/%d/%Y - %H:%M:%S") - timestamp).seconds}s)')
+            widget.master.update()
+            time.sleep(0.5)
+
+    @staticmethod
+    def write_init(text: str = None, mode: str = 'w', path: str = 'data\\plugins\\__init__.py'):
+        if text is None:
+            text = f'# {os.path.dirname(__file__)}\n# {__version__}\n"""\n{STORAGE._cfg}\n"""\n'
+
+        with open(path, mode) as write_init:
+            write_init.write(text)
+
     def configure(self, parent: Application | ctk.CTk | ctk.CTkToplevel = None):
         if parent is None:
             parent = self.object
@@ -1249,9 +1563,15 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
 
 root = STORAGE._Windows.ROOT = Application()
 root.withdraw()
-root.attributes('-topmost', STORAGE.topmost)
+# root.attributes('-topmost', STORAGE.topmost)
+# threading.Thread(target=Utilities.update_elapsed, args=(
+#     root.elapsedLabel, datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'), '%m/%d/%Y - %H:%M:%S'),
+#     root.elapsedToolTip)).start()
+# threading.Thread(target=STORAGE.check_internet, args=[root.noSignalButton]).start()
 
+Utilities.write_init()
 Load(root)
+# Load(root).end()
 
 keyboard.add_hotkey('ctrl+shift+f', Utilities.find, args=[True])
 keyboard.add_hotkey('ctrl+f', Utilities.find)
