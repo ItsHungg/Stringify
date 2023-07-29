@@ -52,7 +52,7 @@ pip install <library>
 
 ## Information
 Project Name: **Stringify**<br>
-Last Checked Version: `1.0.0`<br>
+Last Checked Version: `1.2.0`<br>
 
 ### Libraries
 - pip:  `23.1.2`<br>
