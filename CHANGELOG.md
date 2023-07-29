@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.<br>
 **Format:** `[x.y.z] - mm/dd/yyyy`
 <hr>
 
+## [1.2.0] - 07/29/2023
+### Added
+- Added alternative case converter
+- Added a real-time internet checker
+- Added a small timer to count elapsed time
+- Added more options for config.txt file
+- Added "Words without numbers" statistic
+- Added "Occurrences" statistic for the find feature
+- Added a pop-up (right click) menu for the main textbox
+- Added an exit window
+### Changed
+- You can now modify, cut, copy, paste,... your text through the pop-up menu
+- You can insert a sample text through the pop-up menu
+- You can now upload text through files
+- Improved the find feature
+### Removed
+- Removed sentence case converter (for maintenance)
+### Fixed
+- Fixed plenty of bugs
+
 ## [1.1.1] - 07/22/2023
 ### Fixed
 - Fixed a problem with the auto check for updates feature
@@ -35,5 +55,5 @@ All notable changes to this project will be documented in this file.<br>
 
 # ToDo List
 - Improve the Manage Plugins Windows
-- Add aLtErNaTiVe case option for the case converter
+- Add replace text feature
 - Finish the website for Stringify
