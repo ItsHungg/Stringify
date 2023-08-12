@@ -11,6 +11,7 @@ import webbrowser
 import threading
 import keyboard
 import requests
+import platform
 import shutil
 import random
 import docx
@@ -19,7 +20,7 @@ import sys
 import os
 
 PROJECT_NAME = 'Stringify'
-PROJECT_VERSION = __version__ = '1.2.0'
+PROJECT_VERSION = __version__ = '1.3.0'
 
 
 class Function:
@@ -57,6 +58,11 @@ class Function:
     def check_plural(quantity: int, plural_text: str = 's'):
         return plural_text if quantity > 1 else ''
 
+    class Separator(ctk.CTkFrame):
+        def __init__(self, parent, fg_color=('black', 'gray'), corner_radius=25, height=2, width=0, **kwargs):
+            super().__init__(parent, fg_color=fg_color, corner_radius=corner_radius, height=height, width=width,
+                             **kwargs)
+
 
 class Storage:
     def __init__(self):
@@ -69,7 +75,8 @@ class Storage:
         self.INTERNET_check = True
         self.INTERNET_timeout = 5
 
-        self.THEME_OBJECT = ctk.ThemeManager.theme
+        self.THEME_MANAGER = ctk.ThemeManager
+        self.THEME_OBJECT = self.THEME_MANAGER.theme
 
         self._start_prefix = self._stp = '.CONFIG\n.LOAD.CONFIGURATION'
         self._end_suffix = self._eds = '.CONFIG.END(\"CONFIGURATION\")\n<endl>'
@@ -98,7 +105,7 @@ class Storage:
         self.corner_radius = 7
         self.punctuations = '`-=[]\\;\',./~_+{}|:\"<>?!@#$%^&*()'
         self.numbers = '0123456789'
-        self.text_cases = ['Original', 'Title', 'UPPER', 'lower', 'iNVERSE', 'aLtErNaTiVe']
+        self.text_cases = ['Default', 'Title', 'UPPER', 'lower', 'iNVERSE', 'aLtErNaTiVe']
 
         self.undo = False
         self.max_undo = 0
@@ -110,33 +117,48 @@ class Storage:
 
     @staticmethod
     def check_update(widget: ctk.CTkLabel = None):
-        if STORAGE.UPDATE_req is None:
+        if STORAGE.UPDATE_req is None or not STORAGE.UPDATE_check:
             return
         try:
-            test = requests.get('https://clients-data.netlify.app').text.strip().split('\n')
-        except requests.exceptions.ConnectionError:
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Getting the latest update...\n')
+            test = requests.get('https://clients-data.netlify.app',
+                                timeout=STORAGE.INTERNET_timeout).text.strip().split('\n')
+        except (requests.ConnectionError, requests.ConnectTimeout):
             widget.configure(text='Failed to check version...') if widget is not None else None
             STORAGE.UPDATE_req = []
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/ERROR]: Unable to get the latest version.\n')
             return
         for i in test:
             uvar, uval = [k.strip() for k in i.strip().split(':')]
             if uvar == PROJECT_NAME.strip().lower():
-                if not uval == PROJECT_VERSION.strip().lower():
+                if not uval == __version__.strip().lower():
                     STORAGE.UPDATE_req = uval
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Successfully got the latest version ({uval}).\n')
                 break
 
     @staticmethod
     def check_internet(widget: ctk.CTkButton):
         while True:
             if not STORAGE._Utilities.is_running:
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Internet auto-check disabled.\n')
                 break
             if not STORAGE.INTERNET_check:
                 widget.master.update()
                 return
             try:
                 requests.get('https://www.youtube.com', timeout=STORAGE.INTERNET_timeout)
+                if widget.winfo_viewable():
+                    Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                         text=f'[{time.strftime("%T")}] [User/INFO]: Successfully connected to the internet.\n')
                 widget.grid_forget()
             except (requests.ConnectionError, requests.Timeout):
+                if not widget.winfo_viewable():
+                    Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                         text=f'[{time.strftime("%T")}] [User/ERROR]: Unable to connect to the internet.\n')
                 widget.grid_forget()
                 widget.grid(row=0, column=3, sticky='en', padx=5, pady=(5, 0))
 
@@ -145,6 +167,7 @@ class Storage:
 
     class _Utilities:
         is_running = True
+        open_time = time.strftime('%T')
 
         is_find: bool | ctk.CTkToplevel | ctk.CTk = False
         find_case_sensitive = True
@@ -152,6 +175,7 @@ class Storage:
     class _Windows:
         ROOT: ctk.CTk = False
         SETTING: ctk.CTkToplevel = False
+        INFO: ctk.CTkToplevel = False
         THEME_EDITOR: ctk.CTkToplevel = False
         PLUGIN_EDITOR: ctk.CTkToplevel = False
 
@@ -172,6 +196,8 @@ with open('data\\config.txt', 'r') as config_read:
             var, val = line
             if var == '@theme':
                 STORAGE.THEME = val
+                STORAGE.THEME_MANAGER.load_theme(val)
+                STORAGE.THEME_OBJECT = STORAGE.THEME_MANAGER.theme
             elif var == '@mode':
                 STORAGE.APPEARANCE_MODE = val
             elif var == '@update':
@@ -261,15 +287,19 @@ class Load(ctk.CTkToplevel):
     def __init__(self, parent):
         ctk.CTkToplevel.__init__(self, parent)
         self.after(250, lambda: [self.lift(), self.iconbitmap('assets\\icon\\icon.ico')])
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Processing initialization...\n')
 
         self.title('Initialization')
         self.resizable(False, False)
+        self.geometry('+35+35') if STORAGE.sticky_setting else None
 
         self.grid_columnconfigure(3, weight=1)
 
         self.mainProgressbar = ctk.CTkProgressBar(self, orientation='horizontal', mode='indeterminate', width=350)
 
-        self.loadingText = ctk.CTkLabel(self, text='Checking for updates...')
+        self.loadingText = ctk.CTkLabel(self,
+                                        text='Checking for updates...' if STORAGE.UPDATE_check else 'Initializing...')
         self.loadingText.grid(row=2, column=3, sticky='s', pady=(15, 5))
         self.loadingText.cget('font').configure(size=20, weight='bold')
 
@@ -278,14 +308,20 @@ class Load(ctk.CTkToplevel):
 
         self.check_update_thread = threading.Thread(target=STORAGE.check_update, args=[self.loadingText])
         self.check_update_thread.start()
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Checking for updates...\n') if STORAGE.UPDATE_check else None
         self.check_update_finished()
 
-        self.protocol('WM_DELETE_WINDOW', lambda: [self.destroy(), root.destroy()])
+        self.protocol('WM_DELETE_WINDOW', lambda: [self.destroy(), root.destroy(), Utilities.write_file(
+            path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+            text=f'[{time.strftime("%T")}] [User/INFO]: Terminated {PROJECT_NAME} {__version__}\n{"}"}\n')])
 
     def done(self):
         self.mainProgressbar.stop()
         self.mainProgressbar.configure(mode='determinate')
         self.mainProgressbar.set(1)
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Finished the initialization process. Launching...\n')
         self.after(random.randint(1000, 3000), self.end)
 
     def end(self):
@@ -293,6 +329,8 @@ class Load(ctk.CTkToplevel):
         if isinstance(STORAGE.UPDATE_req, list):
             messagebox.showwarning('[Error] Warning',
                                    'Unable to access server client. Please check your internet connection.')
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: No (or weak) internet connection error has been skipped.\n')
             root.noSignalButton.grid(row=0, column=3, sticky='en', padx=5, pady=(5, 0))
         if STORAGE.UPDATE_check and STORAGE.UPDATE_req and not isinstance(STORAGE.UPDATE_req, list):
             if messagebox.askyesno('Update',
@@ -301,21 +339,41 @@ class Load(ctk.CTkToplevel):
                 webbrowser.open('https://github.com/ItsHungg/Stringify/releases')
 
         root.deiconify()
+
+        keyboard.add_hotkey('shift+r', Utilities.run_command)
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Successfully launched {PROJECT_NAME} {__version__}\n')
         threading.Thread(target=Utilities.update_elapsed, args=(
-            root.elapsedLabel, datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'), '%m/%d/%Y - %H:%M:%S'))).start()
+            root.elapsedLabel, datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'), '%m/%d/%Y - %H:%M:%S'),
+            root.elapsedToolTip)).start()
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Started elapsed timer tick.\n')
         threading.Thread(target=STORAGE.check_internet, args=[root.noSignalButton]).start()
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Started checking for internet.\n')
 
         for file in os.listdir('data\\plugins'):
-            if file.endswith('.py'):
+            if file.endswith('.py') and file.strip() not in ['__init__.py']:
                 try:
+                    Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                         text=f'[{time.strftime("%T")}] [User/INFO]: Executing plugin: {file} (...)\n')
                     exec(open(f'data\\plugins\\{file}').read())
+                    Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                         text=f'[{time.strftime("%T")}] [User/INFO]: Executed plugin: {file}\n')
                 except Exception as error:
-                    messagebox.showwarning(f'[Error] Warning ({file})', f'Something went wrong with your plugin.\n[{type(error).__name__}]: {error}')
+                    Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                         text=f'[{time.strftime("%T")}] [User/ERROR]: Error in {file} ({type(error).__name__}: {error}).\n')
+                    messagebox.showwarning(f'[Error] Warning ({file})',
+                                           f'Something went wrong with your plugin.\n[{type(error).__name__}]: {error}')
+                    Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                         text=f'[{time.strftime("%T")}] [User/INFO]: Error {type(error).__name__} has been skipped.\n')
 
     def check_update_finished(self):
         if self.check_update_thread.is_alive():
             self.after(1000, self.check_update_finished)
         else:
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Finished checking for the newest update.\n') if STORAGE.UPDATE_check else None
             self.loadingText.configure(text='Initializing...')
             self.after(random.randint(3000, 5000), self.done)
 
@@ -326,6 +384,8 @@ class Settings(ctk.CTkToplevel):
         ctk.CTkToplevel.__init__(self, parent)
         self.parent = parent
         self.after(250, lambda: [self.lift(), self.iconbitmap('assets\\icon\\icon.ico')])
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Opened settings.\n')
 
         self.title(f'Settings')
         self.resizable(False, False)
@@ -336,14 +396,20 @@ class Settings(ctk.CTkToplevel):
         self.headerFrame = ctk.CTkFrame(self, corner_radius=0, fg_color='transparent')
         self.headerFrame.grid(row=3, column=3, sticky='nsew')
 
+        self.infoButton = ctk.CTkButton(self, text='', width=0, height=0, image=ctk.CTkImage(
+            light_image=Image.open('assets\\textures\\statistic_light.png'),
+            dark_image=Image.open('assets\\textures\\statistic_dark.png'), size=(11, 11)), fg_color='transparent',
+                                        hover=False, cursor='hand2', command=self.showInfo)
+        self.infoButton.grid(row=3, column=3, sticky='ne')
+
         self.headerFrame.grid_columnconfigure(3, weight=1)
         self.headerText = ctk.CTkLabel(self.headerFrame, text=f'Settings', font=('Calibri', 25, 'bold'))
         self.headerText.grid(row=3, column=3, sticky='nsew', pady=(15, 10))
 
-        ctk.CTkFrame(self.headerFrame, fg_color=('black', 'gray'), corner_radius=25, height=2, width=0).grid(row=5,
-                                                                                                             column=3,
-                                                                                                             sticky='ew',
-                                                                                                             padx=5)
+        FUNCTION.Separator(self.headerFrame).grid(row=5,
+                                                  column=3,
+                                                  sticky='ew',
+                                                  padx=5)
 
         self.mainSettingFrame = ctk.CTkFrame(self, fg_color='transparent')
         self.mainSettingFrame.grid(row=7, column=3)
@@ -404,7 +470,7 @@ class Settings(ctk.CTkToplevel):
             '-topmost', True)
         self.rootOnTopSwitch.grid(row=3, column=3, sticky='w', padx=5)
 
-        self.stickySettingSwitch = ctk.CTkSwitch(self.miscFrame, text='Sticky setting  [BETA]',
+        self.stickySettingSwitch = ctk.CTkSwitch(self.miscFrame, text='Sticky setting',
                                                  command=lambda: Utilities.change_sticky(STORAGE.sticky_setting))
         self.stickySettingSwitch.select() if STORAGE.sticky_setting else None
         CTkToolTip(self.stickySettingSwitch, message='Stick positions of windows. (BETA)').attributes(
@@ -475,10 +541,89 @@ class Settings(ctk.CTkToplevel):
     def on_exit(self):
         self.parent.unbind('<Configure>')
         STORAGE._Windows.SETTING = False
+        STORAGE._Windows.INFO = False
         STORAGE._Windows.THEME_EDITOR = False
         STORAGE._Windows.PLUGIN_EDITOR = False
         Utilities.save_file()
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Closed settings.\n')
         self.destroy()
+        self.parent.lift()
+
+    def showInfo(self):
+        if STORAGE._Windows.INFO:
+            Storage._Windows.INFO.deiconify()
+            Storage._Windows.INFO.lift()
+            return
+
+        showInfoWindow = STORAGE._Windows.INFO = ctk.CTkToplevel(self)
+        showInfoWindow.title(f'')
+        showInfoWindow.geometry(
+            f'+{self.parent.winfo_x() + 35}+{self.parent.winfo_y() + 35}') if STORAGE.sticky_setting else None
+        showInfoWindow.attributes('-topmost', STORAGE.topmost)
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Opened information window.\n')
+
+        self.after(250, lambda: [showInfoWindow.lift(), showInfoWindow.iconbitmap('assets\\icon\\icon.ico')])
+        showInfoWindow.grid_columnconfigure(3, weight=1)
+
+        # HEADER INFO FRAME
+        headerInfoFrame = ctk.CTkFrame(showInfoWindow, fg_color='transparent')
+        headerInfoFrame.grid(row=3, column=3)
+
+        headerInfoText = ctk.CTkLabel(headerInfoFrame, text=f'Information', font=('Calibri', 25, 'bold'))
+        headerInfoText.grid(row=3, column=3, pady=(10, 0))
+
+        FUNCTION.Separator(headerInfoFrame).grid(row=5,
+                                                 column=3,
+                                                 sticky='ew',
+                                                 padx=5)
+
+        # MAIN INFO FRAME
+        mainInfoFrame = ctk.CTkFrame(showInfoWindow, fg_color='transparent')
+        mainInfoFrame.grid(row=5, column=3, padx=25, pady=(0, 10))
+        mainInfoFrame.grid_columnconfigure(3, weight=1)
+
+        # SYSTEM INFO
+        systemInfoFrame = ctk.CTkFrame(mainInfoFrame, fg_color='transparent')
+        systemInfoFrame.grid(row=7, column=3, pady=5, sticky='ew')
+        systemInfoFrame.grid_columnconfigure(3, weight=1)
+
+        ctk.CTkLabel(systemInfoFrame, text='System', font=('Calibri', 20, 'bold')).grid(row=1, column=3)
+
+        systemInfoText = ctk.CTkLabel(systemInfoFrame, text=f'''OS name: {platform.system()}
+OS version: {platform.version()}''', justify='left')
+        systemInfoText.grid(row=3, column=3, sticky='w')
+
+        # STRINGIFY INFO
+        stringifyInfoFrame = ctk.CTkFrame(mainInfoFrame, fg_color='transparent')
+        stringifyInfoFrame.grid(row=9, column=3, pady=5, sticky='ew')
+        stringifyInfoFrame.grid_columnconfigure(3, weight=1)
+
+        ctk.CTkLabel(stringifyInfoFrame, text=f'{PROJECT_NAME}', font=('Calibri', 20, 'bold')).grid(row=1, column=3)
+
+        systemInfoText = ctk.CTkLabel(stringifyInfoFrame, text=f'''Name: {PROJECT_NAME}
+Version: {__version__}
+Start: {STORAGE._Utilities.open_time}''', justify='left')
+        systemInfoText.grid(row=3, column=3, sticky='w')
+
+        # STATISTICS INFO
+        statisticsInfoFrame = ctk.CTkFrame(mainInfoFrame, fg_color='transparent')
+        statisticsInfoFrame.grid(row=11, column=3, sticky='ew')
+        statisticsInfoFrame.grid_columnconfigure(3, weight=1)
+
+        ctk.CTkLabel(statisticsInfoFrame, text=f'Statistics', font=('Calibri', 20, 'bold')).grid(row=1, column=3)
+
+        statisticsText = ctk.CTkLabel(statisticsInfoFrame, text=f'Opened: {time.strftime("%T")}', justify='left')
+        statisticsText.grid(row=3, column=3, sticky='w')
+
+        def exit_information():
+            STORAGE._Windows.INFO = False
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Closed information window.\n')
+            showInfoWindow.destroy()
+
+        showInfoWindow.protocol('WM_DELETE_WINDOW', exit_information)
 
     def themeEditor(self):
         if STORAGE._Windows.THEME_EDITOR:
@@ -489,6 +634,8 @@ class Settings(ctk.CTkToplevel):
         themeEditWindow = STORAGE._Windows.THEME_EDITOR = ctk.CTkToplevel(self)
         themeEditWindow.title('Theme Editor 1.1')
         themeEditWindow.resizable(False, False)
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Opened Theme Editor.\n')
 
         themeEditWindow.attributes('-topmost', STORAGE.topmost)
         if STORAGE._Windows.PLUGIN_EDITOR:
@@ -543,12 +690,16 @@ class Settings(ctk.CTkToplevel):
                     editValue.delete('0.0', 'end')
                     editValue.insert('0.0', json_data.read().strip())
                     editValue.configure(state='disabled')
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Loaded a theme: {pathEntry.get()}\n')
             except (FileNotFoundError, UnicodeError) as error:
                 editValue.configure(state='normal')
                 editValue.delete('0.0', 'end')
                 editValue.insert('0.0', f'[{type(error).__name__}]: {error}')
                 editValue.configure(state='disabled')
                 saveThemeButton.configure(state='disabled', cursor='')
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/ERROR]: Couldn\'t read file: {pathEntry.get()}\n')
                 messagebox.showerror('Error', f'Couldn\'t read file.\n[{type(error).__name__}]: {error}',
                                      parent=themeEditWindow)
 
@@ -569,19 +720,31 @@ class Settings(ctk.CTkToplevel):
                 STORAGE.THEME = new_theme
 
                 Utilities.save_file()
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Saved new theme: {new_theme}\n')
             except Exception as error:
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/ERROR]: Error raised while saving new theme: {error}\n')
                 messagebox.showerror('Error',
                                      f'Something went wrong. Please try again.\n[{type(error).__name__}]: {error}',
                                      parent=themeEditWindow)
                 return
 
-            messagebox.showwarning('Warning', f'You need to restart {PROJECT_NAME} to see the changes.')
+            def on_exit_theme():
+                themeEditWindow.destroy()
+                STORAGE._Windows.THEME_EDITOR = False
+                Utilities.save_file()
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Closed Theme Editor.\n')
+
+            messagebox.showwarning('Warning', f'You need to restart {PROJECT_NAME} to see the changes.',
+                                   parent=themeEditWindow)
 
             for child in [editValue, pathEntry, savePathButton, openPathButton, cancelButton]:
                 child.configure(state='disabled')
             cancelButton.configure(fg_color='gray70')
             saveThemeButton.configure(text='Saved Theme', state='disabled', cursor='')
-            self.after(1000, self.on_exit)
+            self.after(1000, on_exit_theme)
 
         pathFrame = ctk.CTkFrame(themeEditWindow)
         pathFrame.grid(row=3, column=5, sticky='n', padx=(7, 15), pady=10)
@@ -618,6 +781,8 @@ class Settings(ctk.CTkToplevel):
         def exitEditor():
             themeEditWindow.destroy()
             STORAGE._Windows.THEME_EDITOR = False
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Closed Theme Editor.\n')
 
         themeEditWindow.protocol('WM_DELETE_WINDOW', exitEditor)
 
@@ -631,6 +796,8 @@ class Settings(ctk.CTkToplevel):
         pluginEditWindow = STORAGE._Windows.PLUGIN_EDITOR = ctk.CTkToplevel(self)
         pluginEditWindow.title('Plugin Editor 1.0')
         pluginEditWindow.resizable(False, False)
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Opened Plugin Editor.\n')
 
         pluginEditWindow.attributes('-topmost', STORAGE.topmost)
         if STORAGE._Windows.THEME_EDITOR:
@@ -652,11 +819,15 @@ class Settings(ctk.CTkToplevel):
                     editValue.delete('0.0', 'end')
                     editValue.insert('0.0', plugin_data.read().strip())
                     editValue.configure(state='disabled')
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Loaded a plugin: {filename}\n')
             except UnicodeError as error:
                 editValue.configure(state='normal')
                 editValue.delete('0.0', 'end')
                 editValue.insert('0.0', f'[{type(error).__name__}]: {error}')
                 editValue.configure(state='disabled')
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/ERROR]: Couldn\'t read plugin file: {filename}\n')
                 if show_warning:
                     messagebox.showwarning('[Error] Warning',
                                            f'Couldn\'t read file.\n[{type(error).__name__}]: {error}',
@@ -669,14 +840,17 @@ class Settings(ctk.CTkToplevel):
                 if loadfile(pathEntry.get(), pluginEditWindow):
                     pathEntry.bind('<Double-Button-1>', lambda _: Utilities.open(pathEntry.get(), True))
                     pathEntry.bind('<Double-Button-2>', lambda _: Utilities.open(pathEntry.get()))
-                    addPluginButton.configure(state='normal', fg_color=STORAGE.THEME_OBJECT['CTkButton']['fg_color'])
+                    if addPluginButton._state != 'normal':
+                        addPluginButton.configure(state='normal',
+                                                  fg_color=STORAGE.THEME_OBJECT['CTkButton']['fg_color'])
             else:
-                addPluginButton.configure(state='disabled', fg_color='gray75')
+                if addPluginButton._state != 'disabled':
+                    addPluginButton.configure(state='disabled', fg_color='gray75')
                 pathEntry.unbind('<Double-Button-1>')
                 pathEntry.unbind('<Double-Button-2>')
 
         def openfile():
-            filename = filedialog.askopenfilename(title='Choose a theme', initialdir='\\',
+            filename = filedialog.askopenfilename(title='Choose a plugin', initialdir='\\',
                                                   filetypes=[('Python files (*.py)', '*.py')], parent=pluginEditWindow)
             pluginEditWindow.lift()
             if filename != '':
@@ -697,6 +871,8 @@ class Settings(ctk.CTkToplevel):
                         read_plugin_lines = [i for i in check_while.readlines() if not i.lstrip().startswith('#')]
                         for line_in_plugin in read_plugin_lines:
                             if 'while' in line_in_plugin:
+                                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                                     text=f'[{time.strftime("%T")}] [User/WARNING]: Detected a while loop in plugin: {pathEntry.get()}\n')
                                 if not messagebox.askyesno('Warning',
                                                            '[BETA] We detected a potential while loop that can freeze this program. Would you still like to add plugin file?',
                                                            icon='warning', parent=pluginEditWindow):
@@ -704,22 +880,34 @@ class Settings(ctk.CTkToplevel):
                                 break
 
                     if '__init__.py' not in os.listdir('data\\plugins'):
+                        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                             text=f'[{time.strftime("%T")}] [User/WARNING]: Couldn\'t find __init__.py\n')
                         if messagebox.askyesno('Warning',
                                                'Couldn\'t find the __init__.py configuration file.\nDo you want to automatically create one?',
                                                icon='warning', parent=pluginEditWindow):
-                            Utilities.write_init()
+                            Utilities.write_file()
+                            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                                 text=f'[{time.strftime("%T")}] [User/INFO]: Created __init__.py\n')
 
                     if os.path.basename(pathEntry.get()) in [os.path.basename(file) for file in
                                                              os.listdir('data\\plugins')]:
+                        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                             text=f'[{time.strftime("%T")}] [User/WARNING]: Detected a duplicated plugin: {pathEntry.get()}\n')
                         if messagebox.askyesno('Warning',
                                                f'A file named "{os.path.basename(pathEntry.get())}" has already existed.\nDo you want to overwrite it?',
                                                icon='warning', default='no', parent=pluginEditWindow):
                             shutil.copy(pathEntry.get(), 'data\\plugins')
+                            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                                 text=f'[{time.strftime("%T")}] [User/INFO]: Overwrote: {pathEntry.get()}\n')
                         else:
                             return
                     else:
                         shutil.copy(pathEntry.get(), 'data\\plugins')
+                        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                             text=f'[{time.strftime("%T")}] [User/INFO]: Successfully added plugin: {pathEntry.get()}\n')
                 except shutil.SameFileError as error:
+                    Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                         text=f'[{time.strftime("%T")}] [User/ERROR]: Something went wrong while adding plugin ({type(error).__name__}: {error}).\n')
                     messagebox.showwarning('[Error] Warning',
                                            f'An error has been raised.\n[{type(error).__name__}]: {error}',
                                            parent=pluginEditWindow)
@@ -735,6 +923,8 @@ class Settings(ctk.CTkToplevel):
             PLUGIN_MANAGER = managePluginWindow = ctk.CTkToplevel(pluginEditWindow)
             managePluginWindow.title('Plugin Manager 1.0')
             managePluginWindow.resizable(False, False)
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Opened Plugin Manager.\n')
 
             managePluginWindow.attributes('-topmost', STORAGE.topmost)
             managePluginWindow.geometry(
@@ -774,6 +964,8 @@ class Settings(ctk.CTkToplevel):
 
                 PLUGIN_MANAGER = False
                 managePluginWindow.destroy()
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Closed Plugin Manager.\n')
 
             managePluginWindow.protocol('WM_DELETE_WINDOW', exit_manager)
 
@@ -818,6 +1010,8 @@ class Settings(ctk.CTkToplevel):
         def exitEditor():
             pluginEditWindow.destroy()
             STORAGE._Windows.PLUGIN_EDITOR = False
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Closed Plugin Editor.\n')
 
         pathEntry.bind('<KeyRelease>', bind_pathEntry)
         pluginEditWindow.protocol('WM_DELETE_WINDOW', exitEditor)
@@ -832,8 +1026,11 @@ class Settings(ctk.CTkToplevel):
             STORAGE._Windows.SETTING.destroy()
             STORAGE._Windows.SETTING = False
             STORAGE._Windows.THEME_EDITOR = False
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Closed settings.\n')
             return
         STORAGE._Windows.SETTING = Settings(STORAGE._Windows.ROOT)
+        STORAGE._Windows.SETTING.focus()
         STORAGE._Windows.SETTING.attributes('-topmost', STORAGE.topmost)
 
 
@@ -864,6 +1061,23 @@ class Application(ctk.CTk):
         self.MENU.optionMENU.add_separator()
         self.MENU.optionMENU.add_cascade(label='Justify', menu=self.MENU.justifyMENU)
 
+        self.MENU.utilitiesMENU = tk.Menu(self.MENU, tearoff=0)
+        self.MENU.utilitiesMENU.add_command(label='Go to top', command=lambda: self.mainTextbox.yview('0.0'))
+        self.MENU.utilitiesMENU.add_command(label='Go to bottom', command=lambda: self.mainTextbox.yview('end'))
+        self.MENU.utilitiesMENU.add_command(label='Insert sample',
+                                            command=lambda: [self.MISC._textbox_placeholder(call=True),
+                                                             self.mainTextbox.insert('current',
+                                                                                     STORAGE.sample_text),
+                                                             self.MISC._bind_result(call=True, update=True)])
+        self.MENU.utilitiesMENU.add_separator()
+
+        self.MENU.utilitiesMENU.fontMENU = tk.Menu(self.MENU.utilitiesMENU, tearoff=0)
+        self.MENU.utilitiesMENU.fontMENU.add_command(label='Change font',
+                                                     command=lambda: self.MISC.text_option('change_font'))
+        self.MENU.utilitiesMENU.fontMENU.add_command(label='Change size',
+                                                     command=lambda: self.MISC.text_option('change_size'))
+        self.MENU.utilitiesMENU.add_cascade(label='Fonts', menu=self.MENU.utilitiesMENU.fontMENU)
+
         self.MENU.add_command(label='Cut', command=lambda: self.MISC.text_option('cut'))
         self.MENU.add_command(label='Copy', command=lambda: self.MISC.text_option('copy'))
         self.MENU.add_command(label='Paste', command=lambda: self.MISC.text_option('paste'))
@@ -873,10 +1087,12 @@ class Application(ctk.CTk):
         self.MENU.add_separator()
         self.MENU.add_cascade(label='Wrap option', menu=self.MENU.wrapMENU)
         self.MENU.add_cascade(label='Text option', menu=self.MENU.optionMENU)
-        self.MENU.add_command(label='Insert sample', command=lambda: [self.MISC._textbox_placeholder(call=True), self.mainTextbox.insert('current', STORAGE.sample_text), self.MISC._bind_result(call=True, update=True)])
+        self.MENU.add_cascade(label='Utilities', menu=self.MENU.utilitiesMENU)
+        self.MENU.add_separator()
+        self.MENU.add_command(label='Find', command=Utilities.find)
 
         # DEFINE WINDOW PROPERTIES
-        self.title(f'{PROJECT_NAME} {PROJECT_VERSION}')
+        self.title(f'{PROJECT_NAME} {__version__}')
         self.iconbitmap('assets\\icon\\icon.ico')
         self.resizable(False, False)
         self.geometry('+25+25')
@@ -891,6 +1107,9 @@ class Application(ctk.CTk):
         self.noSignalButton = ctk.CTkButton(self, text='',
                                             image=ctk.CTkImage(Image.open('assets\\textures\\no_signal.png')),
                                             width=0, fg_color='transparent', hover=False)
+        CTkToolTip(self.noSignalButton, message='No internet connection', follow=False).attributes('-topmost',
+                                                                                                   STORAGE.topmost)
+
         # HEADER FRAME
         self.headerFrame = ctk.CTkFrame(self, fg_color='transparent')
         self.headerFrame.grid(row=3, column=3, pady=(0, 15))
@@ -936,7 +1155,7 @@ class Application(ctk.CTk):
                                                    fg_color=self.cget('fg_color'), command=self.MISC._bind_action,
                                                    state='disabled')
         self.actionButton.grid(row=3, column=5, sticky='ew')
-        self.actionButton.set('Original')
+        self.actionButton.set('Default')
 
         # RESULT FRAME
         self.resultFrame = ctk.CTkFrame(self, corner_radius=STORAGE.corner_radius)
@@ -989,7 +1208,8 @@ class Utilities:
 
         self.object = parent
 
-    def _textbox_placeholder(self, text: str = '', widget: ctk.CTkTextbox = None, color: tuple | str = 'gray50', call: bool = False):
+    def _textbox_placeholder(self, text: str = '', widget: ctk.CTkTextbox = None, color: tuple | str = 'gray50',
+                             call: bool = False):
         if widget is None:
             widget = self.object.mainTextbox
 
@@ -1005,7 +1225,7 @@ class Utilities:
         def __focusout(_):
             # APPEAR
             if widget.get('0.0', 'end-1c') == '' and not keyboard.is_pressed('shift'):
-                self.object.actionButton.set('Original')
+                self.object.actionButton.set('Default')
                 self.object.focus()
                 widget.insert('0.0', text)
                 widget.configure(text_color=color)
@@ -1036,6 +1256,10 @@ class Utilities:
         def __bind_return(_):
             if keyboard.is_pressed(key):
                 self.object.focus()
+                if self.object.mainTextbox.get('0.0', 'end-1c') == '':
+                    widget.configure(autoseparators=False)
+                    widget.configure(text_color='gray50')
+                    widget.insert('0.0', STORAGE.placeholder)
 
         widget.bind('<KeyPress>', __bind_return)
 
@@ -1048,8 +1272,8 @@ class Utilities:
         def __result_bind(event=None):
             nonlocal __one_million
             if event is not None:
-                if event.char != '' and self.object.actionButton.get() != 'Original':
-                    self.object.actionButton.set('Original')
+                if event.char != '' and self.object.actionButton.get() != 'Default':
+                    self.object.actionButton.set('Default')
                 STORAGE.current_text = self.object.mainTextbox.get('0.0', 'end-1c')
 
             ___item: str = widget.get('0.0', 'end-1c')
@@ -1110,6 +1334,7 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
 
         if call:
             __result_bind(None)
+
         widget.bind('<KeyRelease>', __result_bind)
 
     def _bind_action(self, value, widget: ctk.CTkTextbox = None):
@@ -1117,6 +1342,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             widget = self.object.mainTextbox
         index = STORAGE.text_cases.index(value)
         new = STORAGE.current_text
+
+        current_index = widget.index('insert')
         widget.delete('0.0', 'end')
         if index == 0:
             widget.insert('0.0', new)
@@ -1130,6 +1357,10 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             widget.insert('0.0', new.swapcase())
         elif index == 5:
             widget.insert('0.0', FUNCTION.alternative(new))
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Changed text case (index: {index}; cases: {STORAGE.text_cases}).\n')
+        widget.yview(current_index)
+        widget.mark_set('insert', current_index)
         self._bind_result(call=True)
 
     @staticmethod
@@ -1139,11 +1370,15 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             if isinstance(toplevel, ctk.CTkToplevel):
                 toplevel.destroy()
         STORAGE._Utilities.is_running = False
+        keyboard.unhook_all_hotkeys()
 
         destroyWindow = ctk.CTkToplevel(root)
         destroyWindow.title('Exit & Quit')
         destroyWindow.resizable(False, False)
+        destroyWindow.geometry('+35+35') if STORAGE.sticky_setting else None
         destroyWindow.after(250, lambda: destroyWindow.iconbitmap('assets\\icon\\icon.ico'))
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Saving & Exiting {PROJECT_NAME}.\n')
 
         destroyFrame = ctk.CTkFrame(destroyWindow, fg_color='transparent')
         destroyFrame.grid(row=3, column=3, padx=15, pady=(5, 15))
@@ -1157,10 +1392,16 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             exitingProgressbar.stop()
             exitingProgressbar.configure(mode='determinate')
             exitingProgressbar.set(1)
-            root.after(2000, lambda: [root.destroy(), sys.exit()])
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Successfully saved all datas.\n')
+            root.after(2000, lambda: [root.destroy(),
+                                      Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt',
+                                                           mode='a',
+                                                           text=f'[{time.strftime("%T")}] [User/INFO]: Closed {PROJECT_NAME} {__version__}\n{"}"}\n'),
+                                      sys.exit()])
 
         Utilities.save_file()
-        root.after(random.randint(1500, 3000), _exit)
+        root.after(STORAGE.INTERNET_timeout * 1000 + 250, _exit)
         destroyWindow.protocol('WM_DELETE_WINDOW', lambda: None)
 
     @staticmethod
@@ -1215,7 +1456,7 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             if event is not None:
                 if event.keycode == 13:
                     return
-                if isinstance(event.widget, ctk.CTkTextbox):
+                if isinstance(event.widget, (ctk.CTkTextbox, tk.Text)):
                     if root.mainTextbox.get('0.0', 'end-1c') == last_text:
                         return
                 else:
@@ -1337,6 +1578,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
 
     def change_wrap(self, wrap):
         self.object.mainTextbox.configure(wrap=wrap)
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Changed text wrapping to: {wrap}\n')
 
     def text_option(self, command: str, text: str = None):
         sel_first, sel_last = '0.0', 'end-1c'
@@ -1391,7 +1634,24 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
                 widget.edit_redo()
             except tk.TclError:
                 messagebox.showwarning('Warning', f'There is nothing to redo.')
+        elif command == 'change_font':
+            new_font = ctk.CTkInputDialog(title='Fonts', text='Enter the name of your new font:').get_input()
+            if new_font in ['', '-default']:
+                new_font = STORAGE.THEME_OBJECT['CTkFont']['family']
+            root.mainTextbox._font._family = new_font
+            root.mainTextbox._update_font()
+        elif command == 'change_size':
+            try:
+                new_size = ctk.CTkInputDialog(title='Fonts', text='Enter the name of your new size:').get_input()
+                if new_size in ['', '-default']:
+                    new_size = STORAGE.THEME_OBJECT['CTkFont']['size']
+                root.mainTextbox._font._size = int(new_size)
+                root.mainTextbox._update_font()
+            except Exception as error:
+                messagebox.showwarning('[Error] Warning', f'Something went wrong.\n[{type(error).__name__}]: {error}')
 
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Updated text: {command}\n')
         self._bind_result(call=True, update=True)
 
     @staticmethod
@@ -1404,6 +1664,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
         STORAGE.APPEARANCE_MODE = mode
         if save:
             Utilities.save_file()
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Set system mode to: {mode.lower()}\n')
 
     @staticmethod
     def change_topmost(value: bool):
@@ -1411,6 +1673,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
 
         for win in [STORAGE._Windows.ROOT, STORAGE._Windows.SETTING]:
             win.attributes('-topmost', value)
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Set topmost option to: {str(value).lower()}\n')
         STORAGE.topmost = value
         Utilities.save_file()
 
@@ -1425,6 +1689,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             STORAGE._Windows.ROOT.unbind('<Configure>')
 
         STORAGE.sticky_setting = value
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Set sticky option to: {str(value).lower()}\n')
         Utilities.save_file()
 
     @staticmethod
@@ -1433,6 +1699,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
         STORAGE.UPDATE_check = value
 
         Utilities.save_file()
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Set auto check for updates option to: {str(value).lower()}\n')
 
     @staticmethod
     def move_window(window: ctk.CTk | ctk.CTkToplevel, parent: ctk.CTk | ctk.CTkToplevel = STORAGE._Windows.ROOT):
@@ -1447,6 +1715,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
                                                 STORAGE.undo,
                                                 '-unlimited' if STORAGE.max_undo <= 0 else STORAGE.max_undo,
                                                 STORAGE.topmost, STORAGE.sticky_setting))
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Saved all data to config.txt file.\n')
 
     @staticmethod
     def open(path: str, select: bool = False):
@@ -1454,6 +1724,8 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             os.system(f'explorer /select,\"{path}\"')
         else:
             os.startfile(os.path.realpath(path))
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Explorer opened (highlight: {str(select).lower()}; path: {path}).\n')
 
     @staticmethod
     def uploadFile(parent):
@@ -1466,25 +1738,28 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
                                                   ('Microsoft Word Documents (*.doc)', '*.doc'),
                                                   ('All files', '*.*')), parent=parent)
         try:
+            root.MISC._textbox_placeholder(call=True)
             root.mainTextbox.focus()
             if filename == '':
                 return
             elif any(filename.endswith(end) for end in ['.txt', '.json', '.py']):
                 with open(filename, 'r', encoding='utf8') as addFile:
-                    root.mainTextbox.delete('0.0', 'end')
-                    root.mainTextbox.insert('0.0', addFile.read())
+                    root.mainTextbox.insert('end', addFile.read())
             elif any(filename.endswith(end) for end in ['.doc', '.docx']):
                 document = docx.Document(filename)
                 for docline in document.paragraphs:
-                    root.mainTextbox.delete('0.0', 'end')
                     root.mainTextbox.insert('end', '\n' + docline.text)
             else:
                 messagebox.showwarning('[Error] Warning', f'Unable to read file.\nPath: {filename}', parent=parent)
                 return
             root.mainTextbox.configure(text_color=STORAGE.THEME_OBJECT['CTkTextbox']['text_color'])
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/INFO]: Uploaded a file (path: {filename}).\n')
             Utilities(root)._bind_result(call=True, update=True)
         except Exception as error:
             messagebox.showwarning('[Error] Warning', f'[{type(error).__name__}]: {error}')
+            Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                 text=f'[{time.strftime("%T")}] [User/ERROR]: Error while reading {filename} via upload.\n')
 
     @staticmethod
     def punctuationsBind(character):
@@ -1512,7 +1787,9 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
     def hyperlinksBind(widget: ctk.CTkLabel, link: str, weight: str = 'bold', size: int = 11):
         widget.cget('font').configure(weight=weight, size=size)
 
-        widget.bind('<Button-1>', lambda _: webbrowser.open(link))
+        widget.bind('<Button-1>', lambda _: [webbrowser.open(link), Utilities.write_file(
+            path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+            text=f'[{time.strftime("%T")}] [User/INFO]: Browser open. Link: {link}\n')])
         widget.bind('<Button-2>',
                     lambda _: messagebox.showinfo('Hyperlink',
                                                   f'Link: {link}'))
@@ -1523,10 +1800,12 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
     def update_elapsed(widget: ctk.CTkLabel, timestamp: datetime.strptime, tooltip: CTkToolTip = False):
         while True:
             if not STORAGE._Utilities.is_running:
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Elapsed timer disabled.\n')
                 break
             distance = datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'),
                                          '%m/%d/%Y - %H:%M:%S') - timestamp
-            if distance.seconds/3600 > 24:
+            if distance.seconds / 3600 > 24:
                 widget.configure(text='')
                 return
             else:
@@ -1547,12 +1826,39 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
             time.sleep(0.5)
 
     @staticmethod
-    def write_init(text: str = None, mode: str = 'w', path: str = 'data\\plugins\\__init__.py'):
+    def write_file(text: str = None, mode: str = 'w', path: str = 'data\\plugins\\__init__.py', encoding='utf8'):
         if text is None:
             text = f'# {os.path.dirname(__file__)}\n# {__version__}\n"""\n{STORAGE._cfg}\n"""\n'
 
-        with open(path, mode) as write_init:
+        with open(path, mode, encoding=encoding) as write_init:
             write_init.write(text)
+
+    @staticmethod
+    def run_command():
+        if root.focus_get() == root.mainTextbox._textbox:
+            return
+        Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                             text=f'[{time.strftime("%T")}] [User/INFO]: Opened {PROJECT_NAME} Console.\n')
+        run_cmd = ctk.CTkInputDialog(title=f'{PROJECT_NAME} {__version__} (Console)', text='Run command execution:')
+        run_cmd.geometry(
+            f'+{run_cmd.master.winfo_x() + 35}+{run_cmd.master.winfo_y() + 35}') if STORAGE.sticky_setting else None
+
+        cmd = run_cmd.get_input()
+        cmd_id = random.randint(1000000000, 9999999999)
+        Utilities.write_file(
+            path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+            text=f'[{time.strftime("%T")}] [User/INFO]: Closed {PROJECT_NAME} Console.\n')
+        if cmd is not None:
+            try:
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Executing a custom command (ID: {cmd_id})...\n')
+                exec(cmd)
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/INFO]: Executed custom command (ID: {cmd_id}): {cmd}\n')
+            except Exception as error:
+                messagebox.showwarning('[Error] Warning', f'[{type(error).__name__}]: {error}')
+                Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                                     text=f'[{time.strftime("%T")}] [User/ERROR]: Error in custom command (ID: {cmd_id}; type: {type(error).__name__}; message: {error}): {cmd}\n')
 
     def configure(self, parent: Application | ctk.CTk | ctk.CTkToplevel = None):
         if parent is None:
@@ -1561,17 +1867,30 @@ UPPERCASE | lowercase: {___c_uppercase} | {___c_lowercase} ({0 if not ___charact
         self.object = parent
 
 
+if not platform.system().lower().startswith('win') or not platform.release().startswith(('10', '11')):
+    if not messagebox.askyesno('Important Warning',
+                               f'Many features here might be broken because your current Operating System is not supported, or outdated.\n\nInfo:\n - Operating System: {platform.system()}\n - Release: {platform.release()}\n - Version: {platform.version()}\n\nConfiguration required:\n - Operating System: Windows\n - Version/Release: 10 or above\n\nWould you like to continue using {PROJECT_NAME}?',
+                               icon='warning', default='no'):
+        quit()
+
 root = STORAGE._Windows.ROOT = Application()
 root.withdraw()
-# root.attributes('-topmost', STORAGE.topmost)
+root.attributes('-topmost', STORAGE.topmost)
+
 # threading.Thread(target=Utilities.update_elapsed, args=(
 #     root.elapsedLabel, datetime.strptime(time.strftime('%m/%d/%Y - %H:%M:%S'), '%m/%d/%Y - %H:%M:%S'),
 #     root.elapsedToolTip)).start()
 # threading.Thread(target=STORAGE.check_internet, args=[root.noSignalButton]).start()
 
-Utilities.write_init()
+Utilities.write_file()
+Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                     text=f'\nApplication() {"{"}\n[{time.strftime("%T")}] [User/INFO]: Launching {PROJECT_NAME} {__version__} (...)\n')
+Utilities.write_file(path=f'data\\logs\\log_{time.strftime("%m-%d-%Y")}.txt', mode='a',
+                     text=f'[{time.strftime("%T")}] [User/INFO]: Initializing console...\n')
+
 Load(root)
 # Load(root).end()
+keyboard.add_hotkey('shift+r', Utilities.run_command)
 
 keyboard.add_hotkey('ctrl+shift+f', Utilities.find, args=[True])
 keyboard.add_hotkey('ctrl+f', Utilities.find)
