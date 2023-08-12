@@ -51,8 +51,8 @@ pip install <library>
 <hr>
 
 ## Information
-Project Name: **Stringify**<br>
-Last Checked Version: `1.2.0`<br>
+Project name: **Stringify**<br>
+Last checked: `v1.3.0`<br>
 
 ### Libraries
 - pip:  `23.1.2`<br>
