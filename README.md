@@ -11,12 +11,12 @@
 ### How to download and run the application?
 #### Run through an installer:
 > 1. Install the installer.
-> 2. After the installer was installed, open it.
+> 2. After the installer is installed, open it.
 > 3. Choose the output directory (optional) and press `Install`.
 > 4. Wait for the process to finish and press `Close`.
 > 5. Open the application folder.
 > 6. After you do that, you should see a **`Stringify.exe`** file in that folder.
-> 7. Open that **`Stringify.exe`** file. You will see a loading window with a progressbar.
+> 7. Open that **`Stringify.exe`** file. You will see a loading window with a progress bar.
 > 8. After the initialization is finished, you will see the main application window.
 > 11. Start using it and enjoy! ❤️
 #### Run with a zipped file:
@@ -32,7 +32,7 @@ pip install <library>
 * After doing all the setup steps, this is how you can open and run the application file.
 > 1. After downloading a `.rar` or `.zip` file, unzip and open it.
 > 2. You will see a file named **`Stringify.exe`**. Open that folder.
-> 4. Open that **`Stringify.py`** file. You will see a loading window with a progressbar and a black terminal.
+> 4. Open that **`Stringify.py`** file. You will see a loading window with a progress bar and a black terminal.
 > 7. After the initialization is finished, you will see the main application window.
 > 8. Start using it and enjoy! ❤️
 
@@ -46,7 +46,7 @@ pip install <library>
 #### 3. Which method should I use to install, zipped file or installer?
 > I recommend you use an installer to install Stringify because it's more convenient and you won't need to install any Python library to use.
 #### 4. Does Stringify support MacOS or Linux?
-> No. Stringify only works with Window. Running Stringify on an another OS might get some features break.
+> No. Stringify only works with Windows. Running Stringify on another OS might get some feature break.
 
 <hr>
 
