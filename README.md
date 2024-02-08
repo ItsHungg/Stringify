@@ -31,7 +31,7 @@ pip install <library>
 
 * After doing all the setup steps, this is how you can open and run the application file.
 > 1. After downloading a `.rar` or `.zip` file, unzip and open it.
-> 2. You will see a file named **`Stringify.exe`**. Open that folder.
+> 2. You will see a folder named **`Stringify`**. Open that folder.
 > 4. Open that **`Stringify.py`** file. You will see a loading window with a progress bar and a black terminal.
 > 7. After the initialization is finished, you will see the main application window.
 > 8. Start using it and enjoy! ❤️
